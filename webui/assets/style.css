@@ -23,6 +23,11 @@
   --accent-green: #22b455;
   --accent-orange: #e8920a;
   --accent-red: #e74c3c;
+
+  /* Semantic aliases */
+  --accent-success: var(--accent-green);
+  --accent-warning: var(--accent-orange);
+  --accent-danger: var(--accent-red);
 }
 
 /* ---------- Animated Background ---------- */
@@ -148,22 +153,22 @@ body {
 
 /* ---------- Badges ---------- */
 .badge {
-  background: rgba(255, 255, 255, 0.50) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.40);
-  color: var(--text-secondary) !important;
   padding: 5px 12px;
   border-radius: 8px;
   font-weight: 500;
+  background: rgba(255, 255, 255, 0.50);
+  color: var(--text-secondary);
 }
 
-.badge.bg-light.text-dark,
-.badge.bg-secondary,
-.badge.bg-warning.text-dark {
-  background: rgba(255, 255, 255, 0.50) !important;
-  color: var(--text-secondary) !important;
-}
+/* Colored badges — accent overlay with glass */
+.badge.bg-danger   { background: rgba(231, 76, 60, 0.18) !important; color: var(--accent-red) !important; }
+.badge.bg-success  { background: rgba(34, 180, 85, 0.18) !important; color: var(--accent-green) !important; }
+.badge.bg-warning  { background: rgba(232, 146, 10, 0.18) !important; color: var(--accent-orange) !important; }
+.badge.bg-info     { background: rgba(74, 124, 247, 0.18) !important; color: var(--accent-blue) !important; }
+.badge.bg-primary  { background: rgba(74, 124, 247, 0.18) !important; color: var(--accent-blue) !important; }
 
 /* ---------- Tables ---------- */
 .table {

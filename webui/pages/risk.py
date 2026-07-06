@@ -113,6 +113,36 @@ def run_analysis(n_clicks, etf_code, years, holding):
         [dbc.Col(c, lg=3, md=6, className="mb-3") for c in dist_cards]
     ) if dist_cards else html.Div()
 
+    # ========== 收益率分布图 ==========
+    dist_fig = None
+    if returns is not None and not returns.empty:
+        ret_vals = returns.dropna().values
+        mu = ret_vals.mean()
+        sigma = ret_vals.std()
+        x_range = np.linspace(ret_vals.min(), ret_vals.max(), 200)
+        y_normal = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x_range - mu) / sigma) ** 2)
+
+        dist_fig = go.Figure()
+        dist_fig.add_trace(go.Histogram(
+            x=ret_vals, nbinsx=60, name="实际收益率",
+            histnorm="probability density",
+            marker_color="rgba(74,124,247,0.5)", marker_line_color="#4a7cf7",
+            marker_line_width=0.5, opacity=0.8,
+        ))
+        dist_fig.add_trace(go.Scatter(
+            x=x_range, y=y_normal, mode="lines",
+            name="正态分布", line=dict(color="#e74c3c", width=2, dash="dash"),
+        ))
+        dist_fig.update_layout(
+            title=dict(text="收益率分布 vs 正态分布", font=dict(size=14)),
+            xaxis_title="日收益率", yaxis_title="密度",
+            template="plotly_white", hovermode="x unified",
+            height=280, margin=dict(l=40, r=20, t=40, b=30),
+            legend=dict(orientation="h", y=1.12, x=0.7),
+            bargap=0.05,
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+
     # ========== EVT 结果 ==========
     evt_rows = []
     if evt:
@@ -200,11 +230,23 @@ def run_analysis(n_clicks, etf_code, years, holding):
     budget = result.get("budget", {})
     if budget:
         det = budget.get("调整明细", {})
+        pct = budget.get("持仓上限占比", 0)
+        pct_color = "success" if pct >= 0.8 else "warning" if pct >= 0.5 else "danger"
         budget_rows = [
             html.Tr([html.Td("总资金", className="small text-muted"), html.Td(f"{budget.get('总资金', 0):,.0f} 元", className="fw-semibold")]),
             html.Tr([html.Td("建议持仓上限", className="small text-muted"),
                      html.Td(html.Span(f"{budget.get('建议持仓上限', 0):,.0f} 元", className="badge bg-success"))]),
-            html.Tr([html.Td("持仓上限占比", className="small text-muted"), html.Td(f"{budget.get('持仓上限占比', 0):.0%}")]),
+            html.Tr([html.Td("持仓上限占比", className="small text-muted"),
+                     html.Td([
+                         html.Span(f"{pct:.0%}", className="fw-semibold me-2"),
+                         html.Div(
+                             html.Div(style={"width": f"{min(pct * 100, 100)}%", "height": "100%",
+                                              "backgroundColor": f"var(--accent-{pct_color})" if pct_color in ('success', 'warning', 'danger') else "#4a7cf7",
+                                              "borderRadius": "4px", "transition": "width 0.3s"}),
+                             style={"width": "100px", "height": "8px", "backgroundColor": "rgba(0,0,0,0.06)",
+                                    "borderRadius": "4px", "display": "inline-block", "verticalAlign": "middle"},
+                         ),
+                     ])]),
             html.Tr([html.Td("日风险预算", className="small text-muted"), html.Td(f"{budget.get('风险预算(日)', 0):,.0f} 元")]),
         ]
         if det:
@@ -221,6 +263,9 @@ def run_analysis(n_clicks, etf_code, years, holding):
 
         section_header("收益率分布特征", "bar-chart", "偏度、峰度与分布形态"),
         dist_row,
+        dbc.Row([
+            dbc.Col(chart_card(dist_fig, "收益率分布") if dist_fig else html.Div(), md=12, className="mb-3"),
+        ]),
         html.Hr(className="my-2"),
 
         section_header("动态回撤监控", "arrow-down-circle", "回撤深度、止损线与趋势预警"),
@@ -231,8 +276,10 @@ def run_analysis(n_clicks, etf_code, years, holding):
 
         section_header("尾部风险与压力测试", "lightning", "EVT 极值理论 · 情景压力测试 · 风险预算"),
         dbc.Row([
-            dbc.Col(evt_section, md=4, className="mb-3"),
-            dbc.Col(stress_section, md=4, className="mb-3"),
-            dbc.Col(budget_section, md=4, className="mb-3"),
+            dbc.Col(evt_section, md=6, className="mb-3"),
+            dbc.Col(stress_section, md=6, className="mb-3"),
+        ]),
+        dbc.Row([
+            dbc.Col(budget_section, md=12, className="mb-3"),
         ]),
     ])
