@@ -127,8 +127,9 @@ def run_analysis(n_clicks, etf_code, years):
                         html.Span(lr.get("建议", ""), className="text-info"),
                     ]),
                 ]),
-            ]),
-        ], className="shadow-sm h-100")
+            ], className="p-2"),
+        ], className="shadow-sm h-100 mb-3",
+            style={"borderRadius": "var(--glass-radius, 14px)"})
     else:
         regime_card = stat_card("—", "波动率体制", "secondary", "activity")
 
@@ -138,19 +139,19 @@ def run_analysis(n_clicks, etf_code, years):
     # 条件波动率图
     vol_fig = None
     z_fig = None
+    vol_data = None
     try:
         vol_data = app_state.system.vol_model.vol_data
         if vol_data is not None and not vol_data.empty:
             vol_fig = go.Figure()
+            vol_x = vol_data["date"] if "date" in vol_data.columns else vol_data.index
             vol_fig.add_trace(go.Scatter(
-                x=vol_data.index if isinstance(vol_data.index, (list, pd.Index)) else list(range(len(vol_data))),
-                y=vol_data.get("returns", [0]), mode="lines",
+                x=vol_x, y=vol_data.get("returns", [0]), mode="lines",
                 name="日收益率", line=dict(color="gray", width=0.8), opacity=0.4,
             ))
             if "conditional_vol" in vol_data.columns:
                 vol_fig.add_trace(go.Scatter(
-                    x=vol_data.index if isinstance(vol_data.index, (list, pd.Index)) else list(range(len(vol_data))),
-                    y=vol_data["conditional_vol"], mode="lines",
+                    x=vol_x, y=vol_data["conditional_vol"], mode="lines",
                     name="条件波动率 (GARCH)", line=dict(color="#e74c3c", width=2),
                 ))
             vol_fig.update_layout(
@@ -163,10 +164,10 @@ def run_analysis(n_clicks, etf_code, years):
             )
 
             if "vol_zscore" in vol_data.columns:
-                idx = vol_data.index if isinstance(vol_data.index, (list, pd.Index)) else list(range(len(vol_data)))
+                z_x = vol_data["date"] if "date" in vol_data.columns else vol_data.index
                 z_fig = go.Figure()
                 z_fig.add_trace(go.Scatter(
-                    x=idx, y=vol_data["vol_zscore"],
+                    x=z_x, y=vol_data["vol_zscore"],
                     mode="lines", name="Z-Score", line=dict(color="#4a7cf7", width=2),
                 ))
                 z_fig.add_hline(y=2, line_dash="dash", line_color="#e74c3c",
@@ -215,7 +216,30 @@ def run_analysis(n_clicks, etf_code, years):
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
+    # 提取最新值用于核心指标
+    vol_latest = {}
+    if vol_data is not None and not vol_data.empty:
+        vol_latest = vol_data.iloc[-1].to_dict() if hasattr(vol_data.iloc[-1], 'to_dict') else {}
+    cur_vol = vol_latest.get("conditional_vol", 0)
+    cur_z = vol_latest.get("vol_zscore", 0)
+    regime_text = vol_regime.iloc[-1].get("体制", "—") if vol_regime is not None and not vol_regime.empty else "—"
+    model_type = garch_params.get("模型", getattr(getattr(app_state.system, 'vol_model', None), 'model_type', "GARCH"))
+
+    regime_color = {"低波动": "success", "正常波动": "info", "高波动": "warning", "极端波动": "danger", "—": "secondary"}
+    z_color = "danger" if abs(cur_z) > 2 else "warning" if abs(cur_z) > 1 else "success"
+
     return html.Div([
+        # 核心指标行
+        section_header("核心指标", "speedometer2", "波动率当前状态概览"),
+        dbc.Row([
+            dbc.Col(stat_card(f"{cur_vol:.2%}", "条件波动率(年化)", "primary", "activity"), md=3, className="mb-3"),
+            dbc.Col(stat_card(f"{cur_z:+.2f}", "波动率 Z-Score", z_color, "bar-chart"), md=3, className="mb-3"),
+            dbc.Col(stat_card(regime_text, "当前体制", regime_color.get(regime_text, "secondary"), "flag"), md=3, className="mb-3"),
+            dbc.Col(stat_card(model_type, "GARCH 模型", "info", "gear"), md=3, className="mb-3"),
+        ]),
+        html.Hr(className="my-2"),
+
+        # 模型参数与状态
         section_header("模型参数与状态", "gear", "GARCH 模型拟合参数、当前波动率体制与极端事件"),
         dbc.Row([
             dbc.Col(params_card, md=4, className="mb-3"),
@@ -224,15 +248,17 @@ def run_analysis(n_clicks, etf_code, years):
         ]),
         html.Hr(className="my-2"),
 
+        # 条件波动率分析
         section_header("条件波动率分析", "activity", "GARCH 条件波动率序列与 Z-Score 异常检测"),
         dbc.Row([
-            dbc.Col(chart_card(vol_fig, "GARCH 条件波动率") if vol_fig else html.Div(), md=6, className="mb-3"),
-            dbc.Col(chart_card(z_fig, "波动率 Z-Score") if z_fig else html.Div(), md=6, className="mb-3"),
+            dbc.Col(chart_card(vol_fig, "GARCH 条件波动率") if vol_fig else html.Div(), md=12, className="mb-3"),
+            dbc.Col(chart_card(z_fig, "波动率 Z-Score") if z_fig else html.Div(), md=12, className="mb-3"),
         ]),
         html.Hr(className="my-2"),
 
+        # 波动率预测
         section_header("波动率预测", "graph-up", "GARCH 模型多步波动率预测"),
         dbc.Row([
-            dbc.Col(chart_card(forecast_fig, "波动率预测") if forecast_fig else html.Div(), md=8, className="mb-3"),
+            dbc.Col(chart_card(forecast_fig, "波动率预测") if forecast_fig else html.Div(), md=12, className="mb-3"),
         ]),
     ])

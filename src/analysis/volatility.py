@@ -158,7 +158,7 @@ class VolatilityModel:
         result.index.name = "horizon"
         return result
 
-    def detect_extreme_events(self, n_sigma: float = 2.0) -> pd.DataFrame:
+    def detect_extreme_events(self, n_sigma: float = 3.0) -> pd.DataFrame:
         """
         检测极端波动率事件（统计意义上的加仓/减仓信号）
         Returns
