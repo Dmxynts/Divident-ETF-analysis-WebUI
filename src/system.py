@@ -651,7 +651,7 @@ class DividendETFQuantSystem:
         budget = {}
         try:
             budget = self.risk_manager.risk_budget(
-                returns, holding=1_000_000,
+                returns, total_capital=1_000_000,
                 composite_score=signal_result.composite_score,
                 conditional_vol=self.vol_model.vol_data["conditional_vol"]
                 if self.vol_model.vol_data is not None else None,

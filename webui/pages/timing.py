@@ -19,14 +19,12 @@ DEFAULT_INDEX = CFG.etfs[0].index_code
 
 def layout():
     return html.Div([
-        # 页面标题
         html.Div([
             html.H3("综合择时系统", className="fw-bold mb-1"),
             html.P("融合股债利差 + 宏观状态 + 波动率 + 动量信号的综合仓位建议",
                    className="text-muted mb-0"),
         ], className="mb-4"),
 
-        # 控制面板
         dbc.Card([
             dbc.CardBody([
                 dbc.Row([
@@ -35,17 +33,15 @@ def layout():
                         dcc.Dropdown(id="timing-etf",
                                      options=ETF_OPTIONS, value=DEFAULT_ETF,
                                      clearable=False),
-                    ], md=4, className="mb-2 mb-md-0", style={"zIndex": 9999, "position": "relative"}),
+                    ], md=4, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label("参考指数", className="fw-semibold small mb-1"),
                         dcc.Dropdown(id="timing-index",
                                      options=[{"label": idx, "value": idx} for idx in INDEX_OPTIONS],
                                      value=DEFAULT_INDEX, clearable=False),
-                    ], md=4, className="mb-2 mb-md-0", style={"zIndex": 9999, "position": "relative"}),
+                    ], md=4, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
-                        html.Label(" ", className="fw-semibold d-block small mb-1"
-                                   if False else "d-none d-md-block",
-                                   style={"visibility": "hidden"}),
+                        html.Label("　", className="fw-semibold small mb-1"),
                         dbc.Button(
                             [html.I(className="bi bi-play-fill me-1"), "一键综合评估"],
                             id="timing-run", color="primary", size="lg",
@@ -75,53 +71,54 @@ def _build_indicator_cards(signal):
         dbc.Col(stat_card(f"{score:+.3f}", "综合评分", score_color, "speedometer2"), md=3, className="mb-3"),
         dbc.Col(stat_card(f"{signal.position:.0%}", "建议仓位", "success", "pie-chart"), md=3, className="mb-3"),
         dbc.Col(stat_card(signal.action, "操作建议", action_color, "arrow-up-circle"), md=3, className="mb-3"),
-        dbc.Col(stat_card(signal.explanation, "信号说明", "info", "info-circle"), md=3, className="mb-3"),
+        dbc.Col(dbc.Card([
+            dbc.CardBody([
+                html.I(className="bi bi-info-circle me-2", style={"color": "var(--accent-blue)"}),
+                html.Small(signal.explanation, className="text-muted"),
+            ], className="d-flex align-items-center"),
+        ], className="shadow-sm h-100", style={"borderRadius": "var(--glass-radius, 14px)"}), md=3, className="mb-3"),
     ])
 
 
 def _build_score_figures(signal):
-    """构建仪表盘和维度得分图"""
-    # 仪表盘
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=signal.composite_score,
-        number={"suffix": "", "font": {"size": 44, "color": "#2c3e50"}},
-        title={"text": "综合评分",
-               "font": {"size": 18, "color": "rgba(0,0,0,0.7)"}},
-        gauge={
-            "axis": {"range": [-1, 1], "tickwidth": 1,
-                     "tickcolor": "rgba(0,0,0,0.3)",
-                     "tickfont": {"size": 11}},
-            "bar": {"color": "#4a7cf7", "thickness": 0.35},
-            "bgcolor": "rgba(0,0,0,0.02)",
-            "borderwidth": 0,
-            "steps": [
-                {"range": [-1, -0.5], "color": "rgba(231,76,60,0.15)"},
-                {"range": [-0.5, 0],  "color": "rgba(232,146,10,0.10)"},
-                {"range": [0, 0.5],   "color": "rgba(232,146,10,0.10)"},
-                {"range": [0.5, 1],   "color": "rgba(34,180,85,0.15)"},
-            ],
-            "threshold": {
-                "line": {"color": "#e74c3c", "width": 3},
-                "thickness": 0.65, "value": 0.6,
-            },
-        },
+    """构建实心圆环评分和维度得分图"""
+    score = signal.composite_score
+    normalized = max(0, min(1, (score + 1) / 2))
+    bar_color = "#22b455" if score >= 0.5 else "#4a7cf7" if score >= 0 else "#e8920a" if score >= -0.5 else "#e74c3c"
+
+    gauge_fig = go.Figure()
+    gauge_fig.add_trace(go.Pie(
+        values=[normalized, 1 - normalized],
+        hole=0.72,
+        marker=dict(colors=[bar_color, "rgba(0,0,0,0.05)"]),
+        textinfo="none",
+        hoverinfo="none",
+        showlegend=False,
+        sort=False,
+        direction="clockwise",
+        rotation=90,
     ))
     gauge_fig.update_layout(
         template="plotly_white",
-        height=320,
-        margin=dict(l=50, r=50, t=60, b=30),
+        height=220,
+        margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor="rgba(0,0,0,0)",
-        font={"color": "rgba(0,0,0,0.65)"},
+        annotations=[
+            dict(text=f"{score:+.3f}", x=0.5, y=0.48,
+                 font=dict(size=28, color=bar_color),
+                 showarrow=False, xref="paper", yref="paper"),
+            dict(text="综合评分", x=0.5, y=0.38,
+                 font=dict(size=12, color="rgba(0,0,0,0.4)"),
+                 showarrow=False, xref="paper", yref="paper"),
+        ],
     )
 
-    # 各维度得分
     details = signal.details
     detail_labels = {
         "spread_score": "股债利差", "macro_score": "宏观状态",
         "vol_score": "波动率", "momentum_score": "动量",
-        "vol_level": "波动率-水平", "vol_trend": "波动率-趋势",
-        "vol_forecast": "波动率-预测", "vol_event": "波动率-事件",
+        "vol_level": "波动率水平", "vol_trend": "波动率趋势",
+        "vol_forecast": "波动率预测", "vol_event": "波动率事件",
     }
     labels = [detail_labels.get(k, k) for k in details.keys()]
     values = list(details.values())
@@ -139,7 +136,7 @@ def _build_score_figures(signal):
     score_fig.update_layout(
         title=dict(text="各维度得分", font=dict(size=16, color="rgba(0,0,0,0.7)")),
         template="plotly_white",
-        height=max(320, len(labels) * 38 + 60),
+        height=max(300, len(labels) * 42 + 60),
         margin=dict(l=130, r=60, t=50, b=20),
         xaxis=dict(range=[-1, 1], zeroline=True,
                    zerolinecolor="rgba(0,0,0,0.08)",
@@ -155,7 +152,6 @@ def _build_score_figures(signal):
 
 def _build_bottom_row(signal, allocation, budget_card):
     """构建底部三栏：ETF配置 + 检查清单 + 风险预算"""
-    # ETF配置
     alloc_items = []
     for a in allocation:
         w = a.get("权重", 0)
@@ -189,7 +185,6 @@ def _build_bottom_row(signal, allocation, budget_card):
         ),
     ], className="h-100")
 
-    # 检查清单
     if signal.position >= 0.7:
         checklist_lines = [
             ("重仓持有", "当前适合重仓持有红利ETF"),
@@ -211,7 +206,6 @@ def _build_bottom_row(signal, allocation, budget_card):
 
     checklist_items = []
     for i, (title, desc) in enumerate(checklist_lines, 1):
-        color_map = {0: "primary", 1: "success", 2: "warning"}
         checklist_items.append(html.Div([
             html.Div([
                 html.Span(str(i), className="fw-bold",
@@ -241,13 +235,12 @@ def _build_bottom_row(signal, allocation, budget_card):
         dbc.CardBody(checklist_items),
     ], className="h-100")
 
-    # 风险预算
     budget_section = dbc.Card([
         dbc.CardHeader([
             html.I(className="bi bi-shield-exclamation me-2"),
             "风险预算",
         ]),
-        dbc.CardBody(budget_card),
+        dbc.CardBody(budget_card, className="p-3"),
     ], className="h-100")
 
     return dbc.Row([
@@ -279,7 +272,6 @@ def run_analysis(n_clicks, etf_code, index_code):
     if not signal:
         return dbc.Alert("综合择时信号获取失败", color="danger")
 
-    # 风险预算
     budget_content = html.Div([
         html.Span("暂无数据", className="text-muted small"),
     ])
@@ -308,13 +300,8 @@ def run_analysis(n_clicks, etf_code, index_code):
             ]),
         ])
 
-    # 构建4个核心指标
     indicator_cards = _build_indicator_cards(signal)
-
-    # 构建图表
     gauge_fig, score_fig = _build_score_figures(signal)
-
-    # 构建底部三栏
     bottom_row = _build_bottom_row(signal, allocation, budget_content)
 
     return html.Div([
@@ -324,8 +311,8 @@ def run_analysis(n_clicks, etf_code, index_code):
 
         section_header("多维度分析", "bar-chart", "仪表盘综合评分与各维度得分分解"),
         dbc.Row([
-            dbc.Col(chart_card(gauge_fig, "综合评分"), md=5, className="mb-3"),
-            dbc.Col(chart_card(score_fig, "各维度得分"), md=7, className="mb-3"),
+            dbc.Col(chart_card(gauge_fig, "综合评分"), md=4, className="mb-3"),
+            dbc.Col(chart_card(score_fig, "各维度得分"), md=8, className="mb-3"),
         ]),
         html.Hr(className="my-2"),
 
