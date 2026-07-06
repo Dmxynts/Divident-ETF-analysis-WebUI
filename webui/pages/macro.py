@@ -114,12 +114,14 @@ def run_analysis(n_clicks, years, tune):
             dbc.CardHeader([html.I(className="bi bi-arrow-left-right me-2"), "状态转移概率"],
                           style={"fontSize": "0.9rem", "fontWeight": 600}),
             dbc.CardBody(
-                html.Small(
-                    transition.to_string() if hasattr(transition, "to_string") else str(transition),
-                    className="text-muted",
-                    style={"fontSize": "0.7rem", "whiteSpace": "pre-wrap"},
-                ) if transition is not None else "暂无数据",
-                className="p-2",
+                info_table(
+                    ["当前 \\ 下一状态"] + (list(transition.columns) if transition is not None else []),
+                    [html.Tr([html.Td(st, className="small fw-semibold")] +
+                             [html.Td(f"{transition.loc[st, col]:.1%}" if transition is not None else "-")
+                              for col in transition.columns])
+                     for st in transition.index]
+                ) if transition is not None and not transition.empty else
+                html.Small("无转移矩阵数据", className="text-muted"),
             ),
         ], className="shadow-sm h-100"), md=4, className="mb-3"),
     ])
@@ -215,10 +217,10 @@ def run_analysis(n_clicks, years, tune):
     if transition_fig or history_fig:
         charts_row = dbc.Row([
             dbc.Col(chart_card(transition_fig, "状态转移概率矩阵") if transition_fig else html.Div(), md=6, className="mb-3"),
-            dbc.Col(html.Div([
+            dbc.Col(
                 chart_card(history_fig, "宏观状态历史走势") if history_fig else html.Div(),
-                detail_table,
-            ]), md=6),
+                md=6,
+            ),
         ])
 
     return html.Div([
@@ -240,6 +242,7 @@ def run_analysis(n_clicks, years, tune):
 
         section_header("模型诊断", "search-heart", "评分明细与参数调优结果"),
         dbc.Row([
+            dbc.Col(detail_table, md=6, className="mb-3"),
             dbc.Col(tune_table, md=6, className="mb-3"),
         ]),
     ])

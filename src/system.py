@@ -189,7 +189,8 @@ class DividendETFQuantSystem:
             logger.info(f"\n推荐参数: n_states={int(best['n_states'])}, "
                   f"cov_type={best['cov_type']}, tol={best['tol']}")
             logger.info(f"(AIC={best['AIC']}, 均匀度={best['balance_ratio']})")
-            logger.info()
+
+
 
         self.macro_model.train(features_norm)
         labeled = self.macro_model.label_states(features)

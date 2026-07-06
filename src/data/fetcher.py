@@ -39,7 +39,7 @@ class DataFetcher:
     """
     logger = logging.getLogger(__name__)
 
-    def __init__(self, max_retries: int = 3, retry_delay: float = 2.0,
+    def __init__(self, max_retries: int = 1, retry_delay: float = 0,
                  use_cache: bool = True, cache_expire_days: int = 1,
                  proxy: Optional[dict] = None,
                  etf_index_map: Optional[dict] = None):
@@ -257,30 +257,10 @@ class DataFetcher:
                 return result
 
         # --------------------------------------------------
-        # 3. 东方财富（主力数据源，需代理）
-        # --------------------------------------------------
-        for prefix in ("sh", "sz"):
-            try:
-                df = self._safe_request(
-                    ak.stock_zh_index_daily_em,
-                    symbol=f"{prefix}{index_code}",
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-                if df is not None and not df.empty:
-                    result = self._normalize_price_df(df)
-                    self._save_cache(cache_name, result)
-                    return result
-            except Exception as e:
-                self.logger.debug("东方财富数据源失败 (%s): %s", index_code, e)
-                continue
-
-        # --------------------------------------------------
-        # 4. 中证指数官网（csindex.com.cn，国内直连稳定）
+        # 3. 中证指数官网（csindex.com.cn，国内直连稳定）
         # --------------------------------------------------
         try:
-            df = self._safe_request(
-                ak.stock_zh_index_hist_csindex,
+            df = ak.stock_zh_index_hist_csindex(
                 symbol=index_code,
                 start_date=start_date,
                 end_date=end_date,
@@ -296,11 +276,28 @@ class DataFetcher:
             self.logger.debug("中证指数官网数据源失败 (%s): %s", index_code, e)
 
         # --------------------------------------------------
+        # 4. 东方财富（部分环境 TLS 握手失败，仅试一次不加重试）
+        # --------------------------------------------------
+        for prefix in ("sh", "sz"):
+            try:
+                df = ak.stock_zh_index_daily_em(
+                    symbol=f"{prefix}{index_code}",
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                if df is not None and not df.empty:
+                    result = self._normalize_price_df(df)
+                    self._save_cache(cache_name, result)
+                    return result
+            except Exception as e:
+                self.logger.debug("东方财富数据源失败 (%s): %s", index_code, e)
+                continue
+
+        # --------------------------------------------------
         # 5. 腾讯（备用）
         # --------------------------------------------------
         try:
-            df = self._safe_request(
-                ak.stock_zh_index_daily_tx,
+            df = ak.stock_zh_index_daily_tx(
                 symbol=f"sh{index_code}",
             )
             if df is not None and not df.empty:
@@ -379,7 +376,7 @@ class DataFetcher:
         for prefix in ("sh", "sz"):
             try:
                 sina_symbol = f"{prefix}{etf_code}"
-                df = self._safe_request(ak.fund_etf_hist_sina, symbol=sina_symbol)
+                df = ak.fund_etf_hist_sina(symbol=sina_symbol)
                 if df is not None and not df.empty:
                     result = self._normalize_price_df(df)
                     sd = pd.to_datetime(start_date)
@@ -431,7 +428,7 @@ class DataFetcher:
         通过ETF实际分红记录计算历史股息率
         (fund_etf_dividend_sina 返回累计每份分红，结合ETF价格算出真实股息率)
         """
-        df_div = self._safe_request(ak.fund_etf_dividend_sina, symbol=f"sh{etf_code}")
+        df_div = ak.fund_etf_dividend_sina(symbol=f"sh{etf_code}")
         if df_div is None or df_div.empty:
             return None
 
@@ -525,7 +522,7 @@ class DataFetcher:
 
         # 步骤3: 回退到中证官网校准估计法
         try:
-            df_val = self._safe_request(ak.stock_zh_index_value_csindex, symbol=index_code)
+            df_val = ak.stock_zh_index_value_csindex(symbol=index_code)
             real_div = None
             if df_val is not None and not df_val.empty:
                 col = df_val.columns[8]
@@ -577,7 +574,7 @@ class DataFetcher:
 
         # 使用 bond_zh_us_rate 获取完整国债收益率序列
         try:
-            df = self._safe_request(ak.bond_zh_us_rate)
+            df = ak.bond_zh_us_rate()
         except Exception as e:
             raise ValueError(f"无法获取国债收益率数据: {e}")
 
@@ -643,7 +640,7 @@ class DataFetcher:
         if cached is not None:
             return cached
 
-        df = self._safe_request(macro_funcs[indicator])
+        df = macro_funcs[indicator]()
         if df is None or df.empty:
             raise ValueError(f"获取{indicator}数据失败")
 
@@ -678,7 +675,7 @@ class DataFetcher:
         if cached is not None:
             return cached
 
-        df = self._safe_request(ak.macro_china_money_supply)
+        df = ak.macro_china_money_supply()
         df.columns = [col.replace(" ", "") for col in df.columns]
 
         date_col = [c for c in df.columns if "月份" in c or "日期" in c or "时间" in c][0]
@@ -703,11 +700,11 @@ class DataFetcher:
         """获取ETF最新持仓"""
 
         try:
-            df = self._safe_request(ak.fund_portfolio_hold_em, symbol=etf_code, date=date)
+            df = ak.fund_portfolio_hold_em(symbol=etf_code, date=date)
         except Exception as e:
             self.logger.debug("ETF持仓API1失败，尝试备用接口: %s", e)
             try:
-                df = self._safe_request(ak.fund_etf_fund_info_em, fund=etf_code)
+                df = ak.fund_etf_fund_info_em(fund=etf_code)
             except Exception as e2:
                 self.logger.warning("ETF %s 持仓数据获取失败: %s", etf_code, e2)
                 raise ValueError(f"获取ETF {etf_code} 持仓失败")
