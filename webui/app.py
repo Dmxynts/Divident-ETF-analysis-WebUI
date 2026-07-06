@@ -162,5 +162,5 @@ if __name__ == "__main__":
     import os
     # debug=True 时 Werkzeug 重载器会重启进程，只让主进程打开一次浏览器
     if not os.environ.get("WERKZEUG_RUN_MAIN"):
-        webbrowser.open("http://127.0.0.1:8050")
-    app.run(debug=True, host="127.0.0.1", port=8050)
+        webbrowser.open("http://127.0.0.1:8051")
+    app.run(debug=True, host="127.0.0.1", port=8051)
