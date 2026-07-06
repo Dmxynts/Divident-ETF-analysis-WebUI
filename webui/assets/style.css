@@ -453,4 +453,10 @@ code { color: var(--accent-blue) !important; }
 .text-success { color: var(--accent-green) !important; }
 .text-warning { color: var(--accent-orange) !important; }
 .text-danger  { color: var(--accent-red) !important; }
+
+/* ---------- Animations ---------- */
+@keyframes fadeOut {
+  0%, 60% { opacity: 1; }
+  100%    { opacity: 0; }
+}
 .text-info    { color: #3b82f6 !important; }

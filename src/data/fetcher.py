@@ -74,7 +74,11 @@ class DataFetcher:
             else:
                 os.environ.pop("NO_PROXY", None)
                 os.environ.pop("no_proxy", None)
-        # proxy 为 None 时不操作 os.environ，避免全局副作用
+        else:
+            # 未配置代理时清除系统代理环境变量，避免 Windows 系统代理/VPN 干扰直连
+            for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
+                        "NO_PROXY", "no_proxy"):
+                os.environ.pop(key, None)
 
         if use_cache:
             _get_cache_dir().mkdir(parents=True, exist_ok=True)
@@ -370,6 +374,24 @@ class DataFetcher:
                 return result
 
         last_error = None
+
+        # 优先：新浪数据源（稳定、延迟低）
+        for prefix in ("sh", "sz"):
+            try:
+                sina_symbol = f"{prefix}{etf_code}"
+                df = self._safe_request(ak.fund_etf_hist_sina, symbol=sina_symbol)
+                if df is not None and not df.empty:
+                    result = self._normalize_price_df(df)
+                    sd = pd.to_datetime(start_date)
+                    ed = pd.to_datetime(end_date)
+                    result = result[(result["date"] >= sd) & (result["date"] <= ed)]
+                    if not result.empty:
+                        self._save_cache(cache_name, result)
+                        return result
+            except Exception:
+                continue
+
+        # 备用：东方财富（部分环境 TLS 握手失败）
         for attempt_start in (start_date, DataFetcher.get_start_date(20)):
             try:
                 df = self._safe_request(

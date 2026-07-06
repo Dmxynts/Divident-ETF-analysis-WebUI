@@ -7,11 +7,16 @@ _root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_root))
 
 import dash
-from dash import html
+from dash import html, dcc, callback, Input, Output
 import dash_bootstrap_components as dbc
+import plotly.graph_objects as go
 from config import CFG
+from webui.state import state as app_state, error_alert
 
 dash.register_page(__name__, path="/", name="总览")
+
+ETF_OPTIONS = [{"label": f"{etf.name} ({etf.code})", "value": etf.code} for etf in CFG.etfs]
+DEFAULT_ETF = CFG.etfs[0].code
 
 MODULES = [
     {"path": "/spread", "icon": "graph-up-arrow", "title": "股债利差择时",
@@ -30,6 +35,7 @@ MODULES = [
      "desc": "融合股债利差+宏观+波动率+动量的综合信号"},
 ]
 
+
 def module_card(mod):
     return dbc.Card(
         dbc.CardBody([
@@ -47,7 +53,6 @@ def module_card(mod):
 
 def layout():
     return html.Div([
-        # 欢迎横幅
         dbc.Row([
             dbc.Col([
                 html.H2("红利ETF量化分析系统", className="fw-bold"),
@@ -56,21 +61,29 @@ def layout():
             ]),
         ], className="mb-4"),
 
-        # ETF 列表
-        dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader("跟踪标的"),
-                    dbc.CardBody(
-                        html.Div([
-                            html.Span(f"{etf.name} ({etf.code})",
-                                     className="badge bg-light text-dark me-2 mb-1")
-                            for etf in CFG.etfs
-                        ])
-                    ),
-                ], className="shadow-sm"),
+        # ETF 价格走势图
+        dbc.Card([
+            dbc.CardHeader([
+                html.I(className="bi bi-graph-up me-2"),
+                "ETF 价格走势",
             ]),
-        ], className="mb-4"),
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("选择 ETF", className="fw-semibold small mb-1"),
+                        dcc.Dropdown(id="home-etf", options=ETF_OPTIONS, value=DEFAULT_ETF, clearable=False),
+                    ], md=3, style={"zIndex": 9999, "position": "relative"}),
+                    dbc.Col([
+                        html.Label("回溯年限", className="fw-semibold small mb-1"),
+                        dcc.Slider(id="home-years", min=1, max=10, step=1, value=5,
+                                   marks={1: "1年", 3: "3年", 5: "5年", 10: "10年"}),
+                    ], md=6),
+                ]),
+                dcc.Loading(id="home-chart-loading", type="circle", children=[
+                    html.Div(id="home-chart"),
+                ]),
+            ]),
+        ], className="shadow-sm mb-4"),
 
         # 模块入口
         html.H5("分析模块", className="mb-3"),
@@ -80,25 +93,79 @@ def layout():
                 for mod in MODULES
             ],
         ),
-
-        # 技术栈
-        dbc.Row([
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader("技术栈"),
-                    dbc.CardBody([
-                        html.Span("Python", className="badge bg-secondary me-1"),
-                        html.Span("Pandas", className="badge bg-secondary me-1"),
-                        html.Span("NumPy", className="badge bg-secondary me-1"),
-                        html.Span("AKShare", className="badge bg-secondary me-1"),
-                        html.Span("HMMLearn", className="badge bg-secondary me-1"),
-                        html.Span("Arch", className="badge bg-secondary me-1"),
-                        html.Span("Scikit-learn", className="badge bg-secondary me-1"),
-                        html.Span("Dash", className="badge bg-secondary me-1"),
-                        html.Span("Plotly", className="badge bg-secondary me-1"),
-                        html.Span("Matplotlib", className="badge bg-secondary me-1"),
-                    ]),
-                ], className="shadow-sm"),
-            ]),
-        ], className="mt-2"),
     ])
+
+
+@callback(
+    Output("home-chart", "children"),
+    Input("home-etf", "value"),
+    Input("home-years", "value"),
+)
+def update_chart(etf_code, years):
+    if not etf_code:
+        return html.Div()
+
+    try:
+        start_date = (__import__("datetime").datetime.now() - __import__("datetime").timedelta(days=365 * years)).strftime("%Y%m%d")
+        df = app_state.system.fetcher.get_etf_daily(etf_code, start_date)
+    except Exception as e:
+        return error_alert(e)
+
+    if df is None or df.empty:
+        return html.Div(html.Small("暂无数据", className="text-muted"))
+
+    # 最新一日数据
+    last = df.iloc[-1]
+    last_date = str(last["date"])[:10]
+    last_close = last["close"]
+    prev_close = df.iloc[-2]["close"] if len(df) > 1 else last_close
+    change_pct = (last_close - prev_close) / prev_close * 100
+    arrow = "▲" if change_pct >= 0 else "▼"
+    clr = "#22b455" if change_pct >= 0 else "#e74c3c"
+
+    has_hl = "high" in df.columns and "low" in df.columns
+    fig = go.Figure()
+
+    if has_hl:
+        fig.add_trace(go.Candlestick(
+            x=df["date"], open=df["open"], high=df["high"],
+            low=df["low"], close=df["close"],
+            name="K线", increasing_line_color="#22b455", decreasing_line_color="#e74c3c",
+        ))
+    else:
+        fig.add_trace(go.Scatter(
+            x=df["date"], y=df["close"], mode="lines",
+            name="收盘价", line=dict(color="#4a7cf7", width=2),
+        ))
+
+    # 成交量
+    if "volume" in df.columns:
+        fig.add_trace(go.Bar(
+            x=df["date"], y=df["volume"],
+            name="成交量", marker_color="rgba(74,124,247,0.15)",
+            yaxis="y2", opacity=0.5,
+        ))
+
+    fig.update_layout(
+        title=dict(
+            text=(f"{etf_code}  &nbsp; "
+                  f"<span style='color:{clr};font-size:26px'>{last_close:.3f}</span>"
+                  f"<span style='color:{clr};font-size:16px'> {arrow} {abs(change_pct):.2f}%</span>"
+                  f"<span style='color:gray;font-size:14px'> &nbsp; {last_date}</span>"),
+            font=dict(size=16), y=0.92,
+        ),
+        xaxis_title="日期", yaxis_title="价格",
+        template="plotly_white", hovermode="x unified",
+        height=520,
+        margin=dict(l=40, r=30, t=75, b=30),
+        legend=dict(orientation="h", y=1.02),
+        paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(rangeslider=dict(visible=False)),
+    )
+
+    if "volume" in df.columns:
+        fig.update_layout(
+            yaxis2=dict(overlaying="y", side="right", showgrid=False, visible=False),
+        )
+
+    return dcc.Graph(figure=fig, className="rounded", style={"height": "540px"})

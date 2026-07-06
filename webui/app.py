@@ -11,8 +11,9 @@ sys.path.insert(0, str(_root))
 import plotly.io as pio
 import plotly.graph_objects as go
 import dash
-from dash import Dash, html, dcc
+from dash import Dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
+from webui.state import state as app_state
 
 # -----------------------------------------------------------
 # Plotly 模板 — 透明背景适配亮色玻璃拟态
@@ -120,7 +121,17 @@ sidebar = html.Div(
             pills=True,
             className="px-2",
         ),
-        html.Hr(className="my-3"),
+        html.Hr(className="my-2"),
+        dbc.Button(
+            [html.I(className="bi bi-arrow-clockwise me-2"), "更新数据"],
+            id="sidebar-update-btn",
+            color="primary",
+            size="sm",
+            className="w-75 mx-auto d-block",
+            n_clicks=0,
+        ),
+        html.Div(id="sidebar-update-status", className="text-center small", style={"minHeight": "20px"}),
+        html.Hr(className="my-2"),
         html.Div(
             [
                 html.Small("数据来源: AKShare", className="text-muted d-block"),
@@ -157,6 +168,24 @@ app.layout = dbc.Container(
 # -----------------------------------------------------------
 # 入口
 # -----------------------------------------------------------
+
+@app.callback(
+    Output("sidebar-update-status", "children"),
+    Input("sidebar-update-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def update_data(n_clicks):
+    """清除缓存，下次访问页面时自动拉取最新数据"""
+    try:
+        app_state.system.fetcher.clear_cache()
+        app_state.clear_cache()
+        return html.Span("✓ 缓存已清除，数据将在下次加载时更新",
+                        className="text-success small",
+                        style={"animation": "fadeOut 3s forwards"})
+    except Exception as e:
+        return html.Span(f"✗ {e}", className="text-danger small")
+
+
 if __name__ == "__main__":
     import webbrowser
     import os
