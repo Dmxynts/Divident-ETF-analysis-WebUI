@@ -67,6 +67,7 @@ def run_analysis(n_clicks, etf_code, years):
 
     params = result.get("grid_params", {})
     simulation = result.get("simulation", None)
+    price_series = result.get("price_series", None)
 
     # 参数卡片
     slippage = app_state.system.grid_optimizer.slippage
@@ -97,6 +98,13 @@ def run_analysis(n_clicks, etf_code, years):
 
     # 网格价格示意图
     grid_fig = go.Figure()
+    if price_series is not None and "close" in price_series.columns:
+        x = price_series["date"] if "date" in price_series.columns else list(range(len(price_series)))
+        grid_fig.add_trace(go.Scatter(
+            x=x, y=price_series["close"], mode="lines",
+            name="实际价格", opacity=0.7,
+            line=dict(color="#4a7cf7", width=1.5),
+        ))
     grid_fig.add_hline(y=center, line_dash="solid", line_color="#e74c3c", line_width=2,
                        annotation_text=f"网格中心 {center:.3f}")
     for p in levels:
@@ -105,7 +113,7 @@ def run_analysis(n_clicks, etf_code, years):
         title=dict(text="网格价格层级", font=dict(size=14)),
         yaxis_title="价格", template="plotly_white", height=350,
         margin=dict(l=40, r=20, t=40, b=30),
-        showlegend=False,
+        showlegend=True, legend=dict(orientation="h", y=1.12),
         paper_bgcolor="rgba(0,0,0,0)",
     )
 
@@ -114,17 +122,20 @@ def run_analysis(n_clicks, etf_code, years):
     sim_cards = html.Div()
     if simulation is not None and not simulation.empty:
         sim_fig = go.Figure()
+        nav_min = simulation["nav"].min()
+        nav_max = simulation["nav"].max()
+        padding = (nav_max - nav_min) * 0.1 or nav_min * 0.01
         sim_fig.add_trace(go.Scatter(
             x=list(range(len(simulation))), y=simulation["nav"],
             mode="lines", name="策略净值",
             line=dict(color="#22b455", width=2),
-            fill="tozeroy", fillcolor="rgba(34,180,85,0.06)",
         ))
         sim_fig.update_layout(
             title=dict(text="网格交易模拟净值", font=dict(size=14)),
             xaxis_title="交易次数", yaxis_title="净值",
             template="plotly_white", height=350,
             margin=dict(l=40, r=20, t=40, b=30),
+            yaxis=dict(range=[nav_min - padding, nav_max + padding]),
             paper_bgcolor="rgba(0,0,0,0)",
         )
 

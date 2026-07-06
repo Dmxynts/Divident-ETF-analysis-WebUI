@@ -402,7 +402,7 @@ class DividendETFQuantSystem:
             logger.info(f"  累计滑点损失: ¥{total_slippage:,.2f}")
             logger.info(f"  累计交易费用: ¥{total_fee:,.2f}")
 
-        return {"grid_params": params, "simulation": nav_df}
+        return {"grid_params": params, "simulation": nav_df, "price_series": etf_data}
 
     # -----------------------------------------------------------
     # 模块6: 因子归因
