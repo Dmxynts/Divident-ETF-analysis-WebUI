@@ -29,7 +29,7 @@ def layout():
                     dbc.Col([
                         html.Label("ETF", className="fw-semibold small mb-1"),
                         dcc.Dropdown(id="risk-etf", options=ETF_OPTIONS, value=DEFAULT_ETF, clearable=False),
-                    ], md=3),
+                    ], md=3, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label("回溯年限", className="fw-semibold small mb-1"),
                         dcc.Slider(id="risk-years", min=3, max=15, step=1, value=10,

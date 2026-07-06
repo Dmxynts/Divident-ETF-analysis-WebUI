@@ -32,7 +32,7 @@ def layout():
                             value=DEFAULT_INDEX,
                             clearable=False,
                         ),
-                    ], md=4),
+                    ], md=4, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label("回溯窗口", className="fw-semibold small mb-1"),
                         dcc.Slider(

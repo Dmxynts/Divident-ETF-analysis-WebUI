@@ -35,13 +35,13 @@ def layout():
                         dcc.Dropdown(id="timing-etf",
                                      options=ETF_OPTIONS, value=DEFAULT_ETF,
                                      clearable=False),
-                    ], md=4, className="mb-2 mb-md-0"),
+                    ], md=4, className="mb-2 mb-md-0", style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label("参考指数", className="fw-semibold small mb-1"),
                         dcc.Dropdown(id="timing-index",
                                      options=[{"label": idx, "value": idx} for idx in INDEX_OPTIONS],
                                      value=DEFAULT_INDEX, clearable=False),
-                    ], md=4, className="mb-2 mb-md-0"),
+                    ], md=4, className="mb-2 mb-md-0", style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label(" ", className="fw-semibold d-block small mb-1"
                                    if False else "d-none d-md-block",
