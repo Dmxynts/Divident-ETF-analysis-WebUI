@@ -1,0 +1,445 @@
+/* =============================================
+   Glassmorphism Theme (Light) · 红利ETF量化分析系统
+   亮色玻璃拟态 · 半透明毛玻璃 + 柔和渐变背景
+   ============================================= */
+
+/* ---------- CSS Variables ---------- */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-border-strong: rgba(255, 255, 255, 0.60);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.10);
+  --glass-blur: 20px;
+  --glass-radius: 14px;
+
+  --text-primary: rgba(0, 0, 0, 0.88);
+  --text-secondary: rgba(0, 0, 0, 0.62);
+  --text-muted-custom: rgba(0, 0, 0, 0.40);
+
+  --accent-blue: #4a7cf7;
+  --accent-purple: #7c5cfc;
+  --accent-green: #22b455;
+  --accent-orange: #e8920a;
+  --accent-red: #e74c3c;
+}
+
+/* ---------- Animated Background ---------- */
+body {
+  background: linear-gradient(135deg, #e8ecf8 0%, #f5edf8 30%, #edf4f8 60%, #e8f0f5 100%) fixed !important;
+  background-size: 300% 300% !important;
+  animation: glassBgShift 20s ease infinite;
+  min-height: 100vh;
+  color: var(--text-primary) !important;
+}
+
+@keyframes glassBgShift {
+  0%   { background-position: 0% 50%; }
+  25%  { background-position: 100% 0%; }
+  50%  { background-position: 100% 100%; }
+  75%  { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar              { width: 6px; height: 6px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(0,0,0,0.10); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover  { background: rgba(0,0,0,0.18); }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  background: rgba(255, 255, 255, 0.50) !important;
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-right: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.sidebar h5 { color: var(--accent-blue) !important; }
+.sidebar hr { border-color: rgba(0,0,0,0.05) !important; opacity: 1; }
+
+/* Nav links */
+.nav-link-custom {
+  color: var(--text-secondary) !important;
+  border-radius: 10px !important;
+  margin: 2px 0;
+  padding: 10px 14px !important;
+  transition: all 0.25s ease;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.nav-link-custom:hover {
+  background: rgba(255, 255, 255, 0.45) !important;
+  color: var(--text-primary) !important;
+  transform: translateX(3px);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.nav-link-custom.active {
+  background: linear-gradient(135deg, rgba(74, 124, 247, 0.10), rgba(124, 92, 252, 0.10)) !important;
+  color: var(--accent-blue) !important;
+  box-shadow: 0 2px 12px rgba(74, 124, 247, 0.08);
+  border: 1px solid rgba(74, 124, 247, 0.15);
+}
+
+/* ---------- Glass Cards ---------- */
+.card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--glass-radius) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+.card-header {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  color: var(--text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: calc(var(--glass-radius) - 2px) calc(var(--glass-radius) - 2px) 0 0 !important;
+  padding: 12px 18px !important;
+}
+
+.card-body {
+  color: var(--text-primary);
+  padding: 18px !important;
+}
+
+.card-title { color: var(--text-primary) !important; }
+.card-subtitle { color: var(--text-muted-custom) !important; }
+.card-text { color: var(--text-secondary) !important; }
+
+/* Metric indicator cards — slightly stronger glass */
+.card.shadow-sm.text-center {
+  background: var(--glass-bg-strong) !important;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)) !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(74, 124, 247, 0.25);
+  transition: all 0.25s ease !important;
+  border-radius: 10px !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff !important;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(74, 124, 247, 0.35) !important;
+}
+
+.btn-primary:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 10px rgba(74, 124, 247, 0.18) !important;
+}
+
+/* ---------- Badges ---------- */
+.badge {
+  background: rgba(255, 255, 255, 0.50) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  color: var(--text-secondary) !important;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.badge.bg-light.text-dark,
+.badge.bg-secondary,
+.badge.bg-warning.text-dark {
+  background: rgba(255, 255, 255, 0.50) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ---------- Tables ---------- */
+.table {
+  color: var(--text-primary) !important;
+  --bs-table-bg: transparent !important;
+  --bs-table-hover-bg: rgba(0, 0, 0, 0.02) !important;
+  --bs-table-striped-bg: rgba(0, 0, 0, 0.01) !important;
+  --bs-table-border-color: rgba(0, 0, 0, 0.05) !important;
+  margin-bottom: 0;
+}
+
+.table thead th {
+  border-bottom-width: 1px;
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table td, .table th {
+  border-color: rgba(0, 0, 0, 0.04) !important;
+  vertical-align: middle;
+}
+
+.table-bordered { border-color: rgba(0, 0, 0, 0.05) !important; }
+
+/* ---------- Alerts ---------- */
+.alert {
+  background: rgba(255, 255, 255, 0.50) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.40) !important;
+  border-radius: 12px;
+  color: var(--text-primary) !important;
+}
+
+.alert-danger  { background: rgba(231, 76, 60, 0.08) !important; border-color: rgba(231, 76, 60, 0.15) !important; }
+.alert-info    { background: rgba(74, 124, 247, 0.08) !important; border-color: rgba(74, 124, 247, 0.15) !important; }
+.alert-success { background: rgba(34, 180, 85, 0.08) !important; border-color: rgba(34, 180, 85, 0.15) !important; }
+.alert-warning { background: rgba(232, 146, 10, 0.08) !important; border-color: rgba(232, 146, 10, 0.15) !important; }
+
+.alert-heading { color: var(--text-primary) !important; }
+
+/* ---------- Dropdowns (React-Select) ---------- */
+.dash-dropdown .Select-control {
+  background: rgba(255, 255, 255, 0.50) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 10px !important;
+  color: var(--text-primary) !important;
+  transition: all 0.25s ease;
+  min-height: 40px;
+}
+
+.dash-dropdown .Select-control:hover {
+  border-color: var(--accent-blue) !important;
+  background: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dash-dropdown .Select-value-label {
+  color: var(--text-primary) !important;
+  line-height: 28px;
+}
+
+.dash-dropdown .Select-placeholder {
+  color: var(--text-muted-custom) !important;
+  line-height: 28px;
+}
+
+.dash-dropdown .Select-input { height: 28px; color: var(--text-primary); }
+
+.dash-dropdown .Select-menu-outer {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.10);
+  margin-top: 4px;
+  z-index: 100;
+}
+
+.dash-dropdown .Select-option {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  padding: 8px 14px;
+  transition: background 0.15s ease;
+}
+
+.dash-dropdown .Select-option:hover {
+  background: rgba(74, 124, 247, 0.06) !important;
+  color: var(--text-primary) !important;
+}
+
+.dash-dropdown .Select-option.is-selected {
+  background: rgba(74, 124, 247, 0.10) !important;
+  color: var(--accent-blue) !important;
+}
+
+.dash-dropdown .Select-arrow {
+  border-color: var(--text-muted-custom) transparent transparent !important;
+}
+
+.dash-dropdown .Select-clear {
+  color: var(--text-muted-custom) !important;
+}
+
+.dash-dropdown .Select-value {
+  background: rgba(255, 255, 255, 0.40) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-radius: 6px !important;
+}
+
+/* ---------- Slider (rc-slider) ---------- */
+.rc-slider { padding-top: 12px; }
+
+.rc-slider-track {
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)) !important;
+  height: 4px !important;
+}
+
+.rc-slider-rail {
+  background: rgba(0, 0, 0, 0.06) !important;
+  height: 4px !important;
+}
+
+.rc-slider-handle {
+  border: 2px solid var(--accent-blue) !important;
+  background: #fff !important;
+  box-shadow: 0 2px 8px rgba(74, 124, 247, 0.20);
+  width: 20px !important;
+  height: 20px !important;
+  margin-top: -8px !important;
+}
+
+.rc-slider-handle:hover {
+  border-color: var(--accent-purple) !important;
+  box-shadow: 0 2px 14px rgba(74, 124, 247, 0.35) !important;
+}
+
+.rc-slider-mark-text {
+  color: var(--text-muted-custom) !important;
+  font-size: 0.8rem;
+}
+
+.rc-slider-dot {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.10) !important;
+  bottom: -4px !important;
+}
+
+/* ---------- Form Controls ---------- */
+.form-control {
+  background: rgba(255, 255, 255, 0.50) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 10px !important;
+  color: var(--text-primary) !important;
+  transition: all 0.25s ease;
+}
+
+.form-control:focus {
+  background: rgba(255, 255, 255, 0.65) !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 0 3px rgba(74, 124, 247, 0.12);
+  color: var(--text-primary) !important;
+}
+
+.form-control::placeholder { color: var(--text-muted-custom) !important; }
+
+/* ---------- Checklist / Switch ---------- */
+.form-check-input {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+.form-check-input:checked {
+  background-color: var(--accent-blue) !important;
+  border-color: var(--accent-blue) !important;
+}
+
+.form-check-label { color: var(--text-secondary) !important; }
+
+/* ---------- Loading Spinner ---------- */
+.dash-spinner circle { stroke: var(--accent-blue) !important; stroke-width: 4px; }
+
+._dash-loading-callback {
+  background: rgba(255, 255, 255, 0.40) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ---------- Horizontal Rules ---------- */
+hr {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+  opacity: 1;
+  margin: 1.25rem 0;
+}
+
+/* ---------- Headings & Text ---------- */
+h1, h2, h3, h4, h5, h6 { color: var(--text-primary) !important; }
+
+.text-muted { color: var(--text-muted-custom) !important; }
+.lead { color: var(--text-secondary) !important; }
+
+a {
+  color: var(--accent-blue) !important;
+  transition: color 0.2s ease;
+}
+a:hover { color: #638ef7 !important; }
+
+label, .fw-semibold { color: var(--text-secondary) !important; }
+
+/* ---------- Plotly Chart Containers (Glass) ---------- */
+.dash-graph {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--glass-radius) !important;
+  box-shadow: var(--glass-shadow) !important;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.dash-graph:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-hover) !important;
+}
+
+.dash-graph .js-plotly-plot,
+.dash-graph .plot-container,
+.dash-graph .svg-container {
+  background: transparent !important;
+}
+
+/* Modebar — subtle glass */
+.modebar {
+  background: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  padding: 2px !important;
+}
+
+.modebar-btn { color: var(--text-muted-custom) !important; }
+.modebar-btn:hover { color: var(--text-primary) !important; }
+
+/* ---------- Container overrides ---------- */
+.container-fluid { background: transparent !important; }
+.row, [class*="col-"] { background: transparent !important; }
+.dcc-loading { background: transparent !important; }
+
+/* ---------- Pre / Code blocks (error details) ---------- */
+pre {
+  background: rgba(255, 255, 255, 0.40) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  color: var(--text-secondary) !important;
+  padding: 10px;
+}
+
+code { color: var(--accent-blue) !important; }
+
+/* ---------- Hover Effects ---------- */
+.card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-hover) !important;
+}
+
+.card.shadow-sm.text-center:hover {
+  transform: translateY(-3px) scale(1.02);
+}
+
+/* ---------- Text color overrides for Bootstrap ---------- */
+.text-primary { color: var(--accent-blue) !important; }
+.text-success { color: var(--accent-green) !important; }
+.text-warning { color: var(--accent-orange) !important; }
+.text-danger  { color: var(--accent-red) !important; }
+.text-info    { color: #3b82f6 !important; }
