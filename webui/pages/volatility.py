@@ -159,6 +159,7 @@ def run_analysis(n_clicks, etf_code, years):
                 yaxis_title="波动率", template="plotly_white",
                 hovermode="x unified", height=280,
                 margin=dict(l=40, r=20, t=40, b=30),
+                xaxis_title="日期",
                 legend=dict(orientation="h", y=1.12),
                 paper_bgcolor="rgba(0,0,0,0)",
             )

@@ -126,7 +126,7 @@ def run_analysis(n_clicks, etf_code, years):
         contrib_fig.update_layout(
             title=dict(text="因子贡献度", font=dict(size=14)),
             yaxis_title="贡献度", template="plotly_white",
-            height=300,
+            height=300, hovermode="x unified",
             margin=dict(l=40, r=20, t=40, b=30),
             paper_bgcolor="rgba(0,0,0,0)",
         )

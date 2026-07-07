@@ -139,7 +139,7 @@ def run_analysis(n_clicks, years, tune):
         transition_fig.update_layout(
             title=dict(text="状态转移概率矩阵", font=dict(size=14)),
             xaxis_title="下一状态", yaxis_title="当前状态",
-            template="plotly_white", height=350,
+            template="plotly_white", hovermode="x unified", height=350,
             margin=dict(l=40, r=20, t=40, b=30),
             paper_bgcolor="rgba(0,0,0,0)",
         )
@@ -160,7 +160,7 @@ def run_analysis(n_clicks, years, tune):
         history_fig.update_layout(
             title=dict(text="宏观状态历史走势", font=dict(size=14)),
             xaxis_title="时间", yaxis_title="状态",
-            template="plotly_white", height=250,
+            template="plotly_white", hovermode="x unified", height=250,
             margin=dict(l=40, r=20, t=40, b=30),
             paper_bgcolor="rgba(0,0,0,0)",
         )
@@ -169,16 +169,18 @@ def run_analysis(n_clicks, years, tune):
     feature_figs = []
     if features is not None:
         feature_cols = features.select_dtypes(include=[np.number]).columns[:6]
+        feat_x = features.index if hasattr(features.index, 'dtype') else list(range(len(features)))
         for col in feature_cols:
             f = go.Figure()
             f.add_trace(go.Scatter(
-                x=list(range(len(features))), y=features[col],
+                x=feat_x, y=features[col],
                 mode="lines", name=col, line=dict(width=2),
             ))
             f.update_layout(
                 title=dict(text=col, font=dict(size=12)),
-                template="plotly_white", height=180,
+                template="plotly_white", hovermode="x unified", height=180,
                 margin=dict(l=30, r=10, t=30, b=20),
+                xaxis_title="日期",
                 paper_bgcolor="rgba(0,0,0,0)",
                 showlegend=False,
             )

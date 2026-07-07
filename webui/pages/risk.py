@@ -196,7 +196,7 @@ def run_analysis(n_clicks, etf_code, years, holding):
         var_fig.update_layout(
             title=dict(text="滚动风险指标 (252日窗口)", font=dict(size=14)),
             yaxis_title="收益率", template="plotly_white",
-            hovermode="x unified", height=300,
+            hovermode="x unified", height=300, xaxis_title="日期",
             margin=dict(l=40, r=20, t=40, b=30),
             legend=dict(orientation="h", y=1.12),
             paper_bgcolor="rgba(0,0,0,0)",

@@ -110,9 +110,9 @@ def _build_charts(merged, signal, bt, metrics):
         ))
     fig1.update_layout(
         title=dict(text="中证红利股息率 vs 十年期国债收益率", font=dict(size=14)),
-        yaxis_title="收益率 (%)", hovermode="x unified",
-        height=320, margin=dict(l=50, r=20, t=50, b=30),
-        legend=dict(orientation="h", y=1.12, x=0, font=dict(size=11)),
+        yaxis_title="收益率 (%)", template="plotly_white", hovermode="x unified",
+        height=320, margin=dict(l=40, r=20, t=40, b=30),
+        legend=dict(orientation="h", y=1.12),
         paper_bgcolor="rgba(0,0,0,0)",
     )
 
@@ -131,8 +131,8 @@ def _build_charts(merged, signal, bt, metrics):
     fig2.add_hline(y=0, line=dict(color="rgba(0,0,0,0.15)", width=1, dash="dash"))
     fig2.update_layout(
         title=dict(text="股债利差 (股息率 - 国债收益率)", font=dict(size=14)),
-        yaxis_title="利差 (%)", hovermode="x unified",
-        height=320, margin=dict(l=50, r=20, t=50, b=30),
+        yaxis_title="利差 (%)", template="plotly_white", hovermode="x unified",
+        height=320, margin=dict(l=40, r=20, t=40, b=30),
         paper_bgcolor="rgba(0,0,0,0)",
     )
 
@@ -157,11 +157,10 @@ def _build_charts(merged, signal, bt, metrics):
     ))
     fig3.update_layout(
         title=dict(text="策略仓位信号", font=dict(size=14)),
-        yaxis_title="仓位比例",
+        yaxis_title="仓位比例", template="plotly_white", hovermode="x unified",
         yaxis=dict(range=[0, 1.1], tickformat=".0%",
                    tickvals=[0, 0.3, 0.5, 0.7, 1.0]),
-        hovermode="x unified",
-        height=320, margin=dict(l=50, r=20, t=50, b=30),
+        height=320, margin=dict(l=40, r=20, t=40, b=30),
         paper_bgcolor="rgba(0,0,0,0)",
     )
 
@@ -183,10 +182,9 @@ def _build_charts(merged, signal, bt, metrics):
         ))
         fig4.update_layout(
             title=dict(text="策略 vs 基准净值", font=dict(size=14)),
-            yaxis_title="净值",
-            hovermode="x unified",
-            height=320, margin=dict(l=50, r=20, t=50, b=30),
-            legend=dict(orientation="h", y=1.12, x=0, font=dict(size=11)),
+            yaxis_title="净值", template="plotly_white", hovermode="x unified",
+            height=320, margin=dict(l=40, r=20, t=40, b=30),
+            legend=dict(orientation="h", y=1.12),
             paper_bgcolor="rgba(0,0,0,0)",
         )
 

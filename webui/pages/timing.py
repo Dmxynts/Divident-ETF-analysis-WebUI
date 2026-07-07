@@ -50,7 +50,7 @@ def layout():
                     ], md=4),
                 ]),
             ]),
-        ], className="mb-4"),
+        ], className="shadow-sm mb-4"),
 
         dcc.Loading(id="timing-loading", type="circle", color="#4a7cf7", children=[
             html.Div(id="timing-output"),

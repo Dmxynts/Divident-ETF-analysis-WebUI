@@ -133,7 +133,7 @@ def run_analysis(n_clicks, etf_code, years):
         sim_fig.update_layout(
             title=dict(text="网格交易模拟净值", font=dict(size=14)),
             xaxis_title="交易次数", yaxis_title="净值",
-            template="plotly_white", height=350,
+            template="plotly_white", hovermode="x unified", height=350,
             margin=dict(l=40, r=20, t=40, b=30),
             yaxis=dict(range=[nav_min - padding, nav_max + padding]),
             paper_bgcolor="rgba(0,0,0,0)",
