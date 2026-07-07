@@ -6,3 +6,5 @@ output/
 venv/
 .env
 .pytest_cache/
+.claude/
+*.egg-info/

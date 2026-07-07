@@ -427,7 +427,7 @@ class DividendETFQuantSystem:
             factor_series["market"] = hs300.set_index("date")["close"].pct_change().dropna()
 
             try:
-                gz2000 = self.fetcher.get_index_daily("399303", start_date)
+                gz2000 = self.fetcher.get_index_daily("000852", start_date)
                 factor_series["size"] = gz2000.set_index("date")["close"].pct_change().dropna()
             except Exception as e:
                 logger.debug("小盘因子获取失败（可选）: %s", e)
