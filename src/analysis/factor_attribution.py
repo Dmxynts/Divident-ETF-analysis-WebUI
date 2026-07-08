@@ -7,12 +7,13 @@ import numpy as np
 from typing import Optional, Dict
 
 import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 
 def _fit_ols(X: pd.DataFrame, y: pd.Series) -> sm.OLS:
-    """添加截距并拟合 OLS 回归（模块级函数，供实例方法和静态方法共用）"""
+    """添加截距并拟合 OLS 回归（HC3 稳健标准误）"""
     X_const = sm.add_constant(X)
-    return sm.OLS(y, X_const).fit()
+    return sm.OLS(y, X_const).fit(cov_type="HC3")
 
 
 class FactorAttribution:
@@ -24,31 +25,21 @@ class FactorAttribution:
     def __init__(self):
         self.factor_data: Optional[pd.DataFrame] = None
         self.regression_result: Optional[dict] = None
+        self._X_cols: list = []
 
     def prepare_factor_data(self, stock_returns: pd.DataFrame,
                              factor_values: Dict[str, pd.Series]) -> pd.DataFrame:
-        """
-        准备因子数据
-        Parameters
-        ----------
-        stock_returns : DataFrame index=date, columns=stock_code
-        factor_values : dict of {factor_name: Series(index=date, value)}
-        """
+        """准备因子数据"""
         df = pd.DataFrame(index=stock_returns.index)
         for name, series in factor_values.items():
             df[name] = series
-        # 平均收益作为Y
         df["return"] = stock_returns.mean(axis=1)
         self.factor_data = df.dropna()
+        self._X_cols = [c for c in self.factor_data.columns if c != "return"]
         return self.factor_data
 
     def run_regression(self, y_col: str = "return") -> dict:
-        """
-        运行多元线性回归
-        Returns
-        -------
-        dict: coefficients, t-stats, r_squared, etc.
-        """
+        """运行多元线性回归（HC3 稳健标准误）"""
         if self.factor_data is None:
             raise ValueError("请先准备因子数据")
 
@@ -60,6 +51,7 @@ class FactorAttribution:
             "系数": model.params.tolist(),
             "t值": model.tvalues.tolist(),
             "p值": model.pvalues.tolist(),
+            "标准误(HC3)": model.bse.tolist(),
             "R²": model.rsquared,
             "调整R²": model.rsquared_adj,
             "F值": model.fvalue,
@@ -72,24 +64,35 @@ class FactorAttribution:
             self.run_regression()
 
         df = pd.DataFrame(self.regression_result)
-        # 去掉截距
         contrib = df[df["因子"] != "截距"].copy()
         abs_coef = contrib["系数"].abs()
         contrib["贡献度"] = abs_coef / abs_coef.sum()
         contrib = contrib.sort_values("贡献度", ascending=False)
         return contrib[["因子", "系数", "t值", "p值", "贡献度"]]
 
-    def decompose_etf_return(self, etf_returns: pd.Series,
-                              factor_returns: pd.DataFrame) -> pd.DataFrame:
-        """
-        对ETF收益进行因子分解
-        Y(t) = α + Σ βi * Fi(t) + ε(t)
-        Parameters
-        ----------
-        etf_returns : Series of ETF daily returns
-        factor_returns : DataFrame of factor returns (columns=factor names)
-        """
-        # 对齐
+    def factor_correlation(self) -> pd.DataFrame:
+        """因子相关性矩阵"""
+        if self.factor_data is None or self._X_cols is None:
+            return pd.DataFrame()
+        return self.factor_data[self._X_cols].corr()
+
+    def vif_diagnostic(self) -> pd.DataFrame:
+        """VIF（方差膨胀因子）多重共线性诊断"""
+        if self.factor_data is None:
+            return pd.DataFrame()
+        X = self.factor_data[self._X_cols].dropna()
+        if X.shape[1] < 2 or X.shape[0] < X.shape[1]:
+            return pd.DataFrame()
+        X_const = sm.add_constant(X)
+        results = []
+        for i in range(X_const.shape[1]):
+            vif = variance_inflation_factor(X_const.values, i)
+            results.append({"变量": X_const.columns[i], "VIF": round(vif, 2)})
+        return pd.DataFrame(results)
+
+    def cumulative_contribution(self, etf_returns: pd.Series,
+                                 factor_returns: pd.DataFrame) -> pd.DataFrame:
+        """累计收益分解（堆叠图数据）"""
         df = factor_returns.copy()
         df["ETF_return"] = etf_returns
         df = df.dropna()
@@ -97,7 +100,26 @@ class FactorAttribution:
         X = df.drop(columns=["ETF_return"])
         model = _fit_ols(X, df["ETF_return"])
 
-        # 分解收益（使用已含截距的设计矩阵做预测）
+        components = pd.DataFrame(index=df.index)
+        components["Alpha"] = model.params["const"]
+        for col in X.columns:
+            components[col] = model.params[col] * df[col]
+        components["残差"] = df["ETF_return"] - components.sum(axis=1)
+        components["实际收益"] = df["ETF_return"]
+
+        cum = components.cumsum()
+        return cum
+
+    def decompose_etf_return(self, etf_returns: pd.Series,
+                              factor_returns: pd.DataFrame) -> pd.DataFrame:
+        """对ETF收益进行因子分解"""
+        df = factor_returns.copy()
+        df["ETF_return"] = etf_returns
+        df = df.dropna()
+
+        X = df.drop(columns=["ETF_return"])
+        model = _fit_ols(X, df["ETF_return"])
+
         X_design = model.model.exog
         decomp = pd.DataFrame(index=df.index)
         decomp["实际收益"] = df["ETF_return"]
@@ -131,12 +153,7 @@ class FactorAttribution:
     def rolling_factor_beta(etf_returns: pd.Series,
                              factor_returns: pd.DataFrame,
                              window: int = 60) -> pd.DataFrame:
-        """
-        滚动计算因子Beta（时变因子暴露）
-        Parameters
-        ----------
-        window : int  滚动窗口天数，默认60天
-        """
+        """滚动计算因子Beta（时变因子暴露）"""
         df = factor_returns.copy()
         df["ETF_return"] = etf_returns
         df = df.dropna()

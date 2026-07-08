@@ -475,6 +475,7 @@ class DividendETFQuantSystem:
         # 初始化，供后续 try 块赋值
         decomp = None
         rolling_beta = None
+        cum_contrib = None
 
         if len(aligned) < 60:
             logger.warning(f"  对齐后数据不足（{len(aligned)}天），至少需要60天")
@@ -528,6 +529,9 @@ class DividendETFQuantSystem:
             "decomp": decomp,
             "rolling_beta": rolling_beta,
             "factor_series_names": list(factor_series.keys()),
+            "correlation": self.factor_model.factor_correlation(),
+            "vif": self.factor_model.vif_diagnostic(),
+            "cum_contrib": cum_contrib,
         }
 
     # -----------------------------------------------------------

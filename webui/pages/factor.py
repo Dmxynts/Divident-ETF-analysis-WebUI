@@ -5,6 +5,7 @@ import dash
 from dash import html, dcc, callback, Input, Output, State
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
+import numpy as np
 import pandas as pd
 from webui.state import state as app_state, error_alert
 from webui.components import section_header, stat_card, info_table, table_card, chart_card
@@ -70,6 +71,9 @@ def run_analysis(n_clicks, etf_code, years):
 
     factor_contrib = result.get("factor_contribution", pd.DataFrame())
     regression = result.get("regression", {})
+    correlation = result.get("correlation", pd.DataFrame())
+    vif = result.get("vif", pd.DataFrame())
+    cum_contrib = result.get("cum_contrib", None)
 
     # R² 卡片
     r2 = regression.get("R²", 0)
@@ -145,7 +149,69 @@ def run_analysis(n_clicks, etf_code, years):
             title=dict(text="滚动因子 Beta (120日窗口)", font=dict(size=14)),
             xaxis_title="日期", yaxis_title="Beta",
             template="plotly_white", hovermode="x unified",
-            height=300, margin=dict(l=40, r=20, t=40, b=30),
+            height=360, margin=dict(l=40, r=20, t=40, b=30),
+            legend=dict(orientation="h", y=1.12),
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+
+    # 因子相关性热力图
+    corr_fig = None
+    if correlation is not None and not correlation.empty:
+        corr_fig = go.Figure(data=go.Heatmap(
+            z=correlation.values,
+            x=correlation.columns,
+            y=correlation.index,
+            colorscale="RdBu_r",
+            zmin=-1, zmax=1,
+            text=np.round(correlation.values, 2),
+            texttemplate="%{text}",
+            textfont=dict(size=11),
+        ))
+        corr_fig.update_layout(
+            title=dict(text="因子相关性矩阵", font=dict(size=14)),
+            template="plotly_white", height=280,
+            margin=dict(l=40, r=20, t=40, b=30),
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+
+    # VIF 诊断表
+    vif_card = html.Div()
+    if vif is not None and not vif.empty:
+        vif_rows = []
+        for _, row in vif.iterrows():
+            v = row.get("VIF", 0)
+            c = "danger" if v > 10 else "warning" if v > 5 else "success"
+            vif_rows.append(html.Tr([
+                html.Td(row.get("变量", ""), className="small text-muted"),
+                html.Td(html.Span(f"{v:.1f}", className=f"badge bg-{c}")),
+            ]))
+        vif_card = table_card("多重共线性诊断 (VIF)", info_table(["变量", "VIF"], vif_rows), "graph-up")
+
+    # 累计收益分解堆叠图
+    cum_fig = None
+    if cum_contrib is not None and not cum_contrib.empty:
+        cum_fig = go.Figure()
+        factor_names = [c for c in cum_contrib.columns
+                        if c not in ("实际收益", "残差", "Alpha")]
+        for col in factor_names + ["Alpha"]:
+            if col in cum_contrib.columns:
+                cum_fig.add_trace(go.Scatter(
+                    x=cum_contrib.index, y=cum_contrib[col],
+                    mode="lines", name=col, stackgroup="one",
+                    line=dict(width=0.5),
+                    hovertemplate="%{y:.2%}<extra>" + col + "</extra>",
+                ))
+        if "残差" in cum_contrib.columns:
+            cum_fig.add_trace(go.Scatter(
+                x=cum_contrib.index, y=cum_contrib["残差"],
+                mode="lines", name="残差",
+                line=dict(color="gray", width=1, dash="dot"),
+            ))
+        cum_fig.update_layout(
+            title=dict(text="累计收益分解 (堆叠)", font=dict(size=14)),
+            yaxis_title="累计收益", template="plotly_white",
+            hovermode="x unified", height=300,
+            margin=dict(l=40, r=20, t=40, b=30),
             legend=dict(orientation="h", y=1.12),
             paper_bgcolor="rgba(0,0,0,0)",
         )
@@ -173,27 +239,32 @@ def run_analysis(n_clicks, etf_code, years):
         decomp_table = table_card("近期收益分解 (最近10期)",
                                  info_table(headers, decomp_rows), "table")
 
-    # 如果不足10行，加个提示
     no_data = html.Div()
     if decomp is not None and len(decomp) < 10:
         no_data = html.Small(f"仅 {len(decomp)} 期数据", className="text-muted")
 
     return html.Div([
-        section_header("回归结果", "table", "因子模型拟合度与各因子贡献度"),
+        section_header("回归结果与因子诊断", "table", "模型拟合度、因子贡献、相关性及共线性诊断"),
         dbc.Row([
             dbc.Col(r2_card, md=3, className="mb-3"),
-            dbc.Col(reg_card, md=4, className="mb-3"),
             dbc.Col(contrib_card, md=5, className="mb-3"),
+            dbc.Col(vif_card, md=4, className="mb-3"),
         ]),
-        html.Hr(className="my-2"),
-
-        section_header("因子可视化", "graph-up", "因子贡献柱状图与滚动 Beta"),
         dbc.Row([
+            dbc.Col(chart_card(corr_fig, "因子相关性") if corr_fig else html.Div(), md=6, className="mb-3"),
             dbc.Col(chart_card(contrib_fig, "因子贡献度") if contrib_fig else html.Div(), md=6, className="mb-3"),
-            dbc.Col(chart_card(rolling_beta_fig, "滚动因子 Beta") if rolling_beta_fig else html.Div(), md=6, className="mb-3"),
         ]),
         html.Hr(className="my-2"),
 
-        section_header("收益分解", "pie-chart", "将每日 ETF 收益拆解到各因子 + Alpha"),
+        section_header("时变分析与收益分解", "graph-up", "滚动 Beta、累计收益分解与近期日度拆解"),
+        dbc.Row([
+            dbc.Col(chart_card(rolling_beta_fig, "滚动因子 Beta (120日)") if rolling_beta_fig else html.Div(), md=12, className="mb-3"),
+        ]),
+        dbc.Row([
+            dbc.Col(chart_card(cum_fig, "累计收益分解") if cum_fig else html.Div(), md=12, className="mb-3"),
+        ]),
+        html.Hr(className="my-2"),
+
+        section_header("近期收益分解", "pie-chart", "将每日 ETF 收益拆解到各因子 + Alpha"),
         decomp_table, no_data,
     ])
