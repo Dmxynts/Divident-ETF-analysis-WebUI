@@ -367,7 +367,8 @@ class DividendETFQuantSystem:
     # -----------------------------------------------------------
     # 模块5: 网格交易优化
     # -----------------------------------------------------------
-    def run_grid_optimization(self, etf_code: str = CFG.etfs[0].code, years: int = 3):
+    def run_grid_optimization(self, etf_code: str = CFG.etfs[0].code, years: int = 3,
+                                auto_estimate: bool = False):
         """运行网格交易优化"""
         print_header("网格交易参数优化")
 
@@ -375,7 +376,7 @@ class DividendETFQuantSystem:
         etf_data = self.fetcher.get_etf_daily(etf_code, start_date)
 
         logger.info("校准网格参数（卡尔曼滤波 + ATR）...")
-        params = self.grid_optimizer.calibrate_grid_levels(etf_data)
+        params = self.grid_optimizer.calibrate_grid_levels(etf_data, auto_estimate=auto_estimate)
 
         logger.info(f"  网格中心: {params['网格中心']:.3f}")
         logger.info(f"  网格间距: {params['网格间距']:.4f}")

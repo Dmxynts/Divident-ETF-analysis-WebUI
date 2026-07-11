@@ -28,17 +28,25 @@ def layout():
                     dbc.Col([
                         html.Label("ETF", className="fw-semibold small mb-1"),
                         dcc.Dropdown(id="grid-etf", options=ETF_OPTIONS, value=DEFAULT_ETF, clearable=False),
-                    ], md=4, style={"zIndex": 9999, "position": "relative"}),
+                    ], md=3, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label("回溯年限", className="fw-semibold small mb-1"),
                         dcc.Slider(id="grid-years", min=1, max=5, step=1, value=3,
                                    marks={1: "1年", 2: "2年", 3: "3年", 5: "5年"}),
-                    ], md=4),
+                    ], md=3),
+                    dbc.Col([
+                        html.Label("Kalman 参数", className="fw-semibold small mb-1"),
+                        dbc.Checkbox(
+                            id="grid-em",
+                            label=" EM 自动估计（覆盖默认 delta）",
+                            value=False,
+                        ),
+                    ], md=3, className="d-flex align-items-center"),
                     dbc.Col([
                         html.Label(" ", className="fw-semibold small d-block mb-1"),
                         dbc.Button([html.I(className="bi bi-play-fill me-1"), "运行分析"],
                                    id="grid-run", color="primary", size="lg", className="w-100"),
-                    ], md=4),
+                    ], md=3),
                 ]),
             ]),
         ], className="shadow-sm mb-4"),
@@ -54,14 +62,15 @@ def layout():
     Input("grid-run", "n_clicks"),
     State("grid-etf", "value"),
     State("grid-years", "value"),
+    State("grid-em", "value"),
     prevent_initial_call=True,
 )
-def run_analysis(n_clicks, etf_code, years):
+def run_analysis(n_clicks, etf_code, years, auto_em):
     if not n_clicks:
         return html.Div()
 
     try:
-        result = app_state.run("grid", etf_code=etf_code, years=years)
+        result = app_state.run("grid", etf_code=etf_code, years=years, auto_estimate=auto_em)
     except Exception as e:
         return error_alert(e)
 
@@ -105,6 +114,28 @@ def run_analysis(n_clicks, etf_code, years):
             name="实际价格", opacity=0.7,
             line=dict(color="#4a7cf7", width=1.5),
         ))
+
+        # 卡尔曼滤波均衡价格 + 95%置信区间
+        eq = params.get("均衡价")
+        eq_upper = params.get("均衡价_上限")
+        eq_lower = params.get("均衡价_下限")
+        if eq and eq_upper and eq_lower:
+            n = min(len(x), len(eq))
+            grid_fig.add_trace(go.Scatter(
+                x=x[:n], y=eq_upper[:n], mode="lines",
+                name="95%置信上界", line=dict(color="rgba(231,76,60,0)", width=0),
+                showlegend=False,
+            ))
+            grid_fig.add_trace(go.Scatter(
+                x=x[:n], y=eq_lower[:n], mode="lines",
+                name="95%置信下界", line=dict(color="rgba(231,76,60,0)", width=0),
+                fill="tonexty", fillcolor="rgba(231,76,60,0.08)",
+                showlegend=True, legendgroup="kf",
+            ))
+            grid_fig.add_trace(go.Scatter(
+                x=x[:n], y=eq[:n], mode="lines",
+                name="均衡价(Kalman)", line=dict(color="#e74c3c", width=1.5, dash="dot"),
+            ))
     grid_fig.add_hline(y=center, line_dash="solid", line_color="#e74c3c", line_width=2,
                        annotation_text=f"网格中心 {center:.3f}")
     for p in levels:

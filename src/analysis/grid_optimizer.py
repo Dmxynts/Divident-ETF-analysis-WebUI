@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Tuple
 from scipy.optimize import minimize
+import pykalman
 
 
 class KalmanFilter:
@@ -24,17 +25,25 @@ class KalmanFilter:
         """
         self.delta = delta
         self.R = R
+        self._state_means: Optional[np.ndarray] = None
+        self._state_stds: Optional[np.ndarray] = None
 
-    def fit(self, prices: np.ndarray) -> np.ndarray:
+    def fit(self, prices: np.ndarray, auto_params: bool = False) -> np.ndarray:
         """
         估计均衡价格序列
+
+        Parameters
+        ----------
+        prices : 观测价格序列
+        auto_params : 是否先用EM自动估计最优delta/R
+
         Returns
         -------
         filtered_state_means : 均衡价格序列
         """
-        import pykalman
+        if auto_params:
+            self.delta, self.R = self.estimate_noise(prices)
 
-        n = len(prices)
         kf = pykalman.KalmanFilter(
             transition_matrices=[1],
             observation_matrices=[1],
@@ -43,16 +52,23 @@ class KalmanFilter:
             transition_covariance=self.delta,
             observation_covariance=self.R,
         )
-        filtered_state_means, _ = kf.filter(prices)
-        return filtered_state_means.flatten()
+        means, covs = kf.filter(prices)
+        self._state_means = means.flatten()
+        self._state_stds = np.sqrt(covs.flatten())
+        return self._state_means
+
+    @property
+    def state_std(self) -> np.ndarray:
+        """滤波状态的标准差序列（反映每个时点均衡价格估计的不确定性）"""
+        if self._state_stds is None:
+            raise ValueError("请先调用 fit()")
+        return self._state_stds
 
     def estimate_noise(self, prices: np.ndarray) -> Tuple[float, float]:
         """
-        估计最优的delta和R参数（EM算法）
+        用EM算法估计最优的 delta（状态转移方差）和 R（观测噪声方差）
         """
-        from pykalman import KalmanFilter
-
-        kf = KalmanFilter(
+        kf = pykalman.KalmanFilter(
             transition_matrices=[1],
             observation_matrices=[1],
             initial_state_mean=prices[0],
@@ -91,23 +107,28 @@ class GridOptimizer:
         return float(atr)
 
     def calibrate_grid_levels(self, prices: pd.DataFrame,
-                               kalman_delta: float = 1e-4) -> dict:
+                               kalman_delta: float = 1e-4,
+                               auto_estimate: bool = False) -> dict:
         """
         基于卡尔曼滤波和ATR校准网格
+
         Parameters
         ----------
         prices : DataFrame with columns ['close','high','low']
+        kalman_delta : 状态转移方差（越小越平滑，默认1e-4适合网格交易）
+        auto_estimate : 是否用EM自动估计最优参数（覆盖kalman_delta）
 
         Returns
         -------
-        dict: grid_center, grid_spacing, grid_levels
+        dict: grid_center, grid_spacing, grid_levels, kalman_lower, kalman_upper
         """
         close = prices["close"].values
         has_hl = "high" in prices.columns and "low" in prices.columns
 
         # 卡尔曼滤波求均衡价格
         kf = KalmanFilter(delta=kalman_delta)
-        equilibrium = kf.fit(close)
+        equilibrium = kf.fit(close, auto_params=auto_estimate)
+        kalman_std = kf.state_std
 
         # ATR作为波动率度量（缺少 high/low 时用 close 近似）
         if has_hl:
@@ -137,6 +158,9 @@ class GridOptimizer:
             "ATR": atr,
             "网格层数": self.num_grids,
             "网格价格": [round(p, 3) for p in grid_levels],
+            "均衡价": equilibrium.tolist(),
+            "均衡价_上限": (equilibrium + 1.96 * kalman_std).tolist(),
+            "均衡价_下限": (equilibrium - 1.96 * kalman_std).tolist(),
         }
         return self.optimal_params
 
