@@ -3,6 +3,7 @@
 """
 import logging
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import numpy as np
@@ -226,7 +227,8 @@ class DividendETFQuantSystem:
     # 模块3: 波动率分析 (GARCH)
     # -----------------------------------------------------------
     def run_volatility_analysis(self, etf_code: str = CFG.etfs[0].code,
-                                 years: int = 5, plot: bool = False):
+                                 years: int = 5, plot: bool = False,
+                                 model_type: Optional[str] = None):
         """运行波动率分析"""
         print_header("波动率建模分析 (GARCH)")
 
@@ -239,7 +241,11 @@ class DividendETFQuantSystem:
         returns = etf_data["close"].pct_change().dropna()
         ret_dates = etf_data["date"].iloc[-len(returns):].reset_index(drop=True)
 
-        logger.info("拟合GARCH(1,1)模型...")
+        # 更新模型类型（UI 传入时覆盖默认）
+        if model_type is not None:
+            self.vol_model.model_type = model_type
+
+        logger.info(f"拟合{self.vol_model.model_type}(1,1)模型...")
         params = self.vol_model.fit_garch(returns, dates=ret_dates)
         print_metrics(params)
 
@@ -256,7 +262,7 @@ class DividendETFQuantSystem:
             last_date = last.get("date", extreme.index[-1])
             last_date_str = last_date.strftime('%Y-%m-%d') if hasattr(last_date, 'strftime') else str(last_date)
             logger.info(f"  最近一次极端事件: {last_date_str}")
-            logger.info(f"  Z-Score: {last['vol_zscore']:.2f}")
+            logger.info(f"  Z-Score: {last['z_score']:.2f}")
             logger.info(f"  信号: {last['signal']}")
         else:
             logger.info("  当前无极端波动事件")
@@ -273,6 +279,9 @@ class DividendETFQuantSystem:
                 self.vol_model.vol_data, save_path=str(CFG.output_dir / "volatility_analysis.png")
             )
 
+        logger.info("\n计算新闻冲击曲线...")
+        nic = self.vol_model.compute_news_impact_curve()
+
         return {
             "garch_params": params,
             "vol_forecast": vol_forecast,
@@ -280,6 +289,7 @@ class DividendETFQuantSystem:
             "vol_regime": regime,
             "etf_data": etf_data,
             "returns": returns,
+            "news_impact": nic,
         }
 
     # -----------------------------------------------------------

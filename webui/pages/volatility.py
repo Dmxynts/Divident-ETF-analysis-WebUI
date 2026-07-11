@@ -33,12 +33,24 @@ def layout():
                         html.Label("回溯年限", className="fw-semibold small mb-1"),
                         dcc.Slider(id="vol-years", min=3, max=10, step=1, value=5,
                                    marks={3: "3年", 5: "5年", 8: "8年", 10: "10年"}),
-                    ], md=4),
+                    ], md=3),
+                    dbc.Col([
+                        html.Label("GARCH 模型", className="fw-semibold small mb-1"),
+                        dcc.Dropdown(
+                            id="vol-model",
+                            options=[
+                                {"label": "GARCH", "value": "Garch"},
+                                {"label": "EGARCH (含杠杆效应)", "value": "EGARCH"},
+                                {"label": "GJR-GARCH (含杠杆效应)", "value": "GJR-GARCH"},
+                            ],
+                            value="EGARCH", clearable=False,
+                        ),
+                    ], md=3, style={"zIndex": 9999, "position": "relative"}),
                     dbc.Col([
                         html.Label(" ", className="fw-semibold small d-block mb-1"),
                         dbc.Button([html.I(className="bi bi-play-fill me-1"), "运行分析"],
                                    id="vol-run", color="primary", size="lg", className="w-100"),
-                    ], md=4),
+                    ], md=3),
                 ]),
             ]),
         ], className="shadow-sm mb-4"),
@@ -59,7 +71,7 @@ def _build_events_table(extreme_events):
     rows = []
     for _, row in ext.tail(10).iterrows():
         d_str = str(row.get("date", row.name))[:10] if hasattr(row, "get") else str(row.name)[:10]
-        z = row.get("vol_zscore", 0)
+        z = row.get("z_score", 0)
         sig = row.get("signal", "")
         sig_color = "danger" if "骤升" in str(sig) else "success" if "骤降" in str(sig) else "warning"
         rows.append(html.Tr([
@@ -83,14 +95,15 @@ def _build_events_table(extreme_events):
     Input("vol-run", "n_clicks"),
     State("vol-etf", "value"),
     State("vol-years", "value"),
+    State("vol-model", "value"),
     prevent_initial_call=True,
 )
-def run_analysis(n_clicks, etf_code, years):
+def run_analysis(n_clicks, etf_code, years, model_type):
     if not n_clicks:
         return html.Div()
 
     try:
-        result = app_state.run("volatility", etf_code=etf_code, years=years)
+        result = app_state.run("volatility", etf_code=etf_code, years=years, model_type=model_type)
     except Exception as e:
         return error_alert(e)
 
@@ -98,6 +111,7 @@ def run_analysis(n_clicks, etf_code, years):
     extreme_events = result.get("extreme_events", None)
     vol_regime = result.get("vol_regime", None)
     garch_params = result.get("garch_params", {})
+    news_impact = result.get("news_impact", None)
 
     # GARCH 参数
     param_rows = []
@@ -217,6 +231,9 @@ def run_analysis(n_clicks, etf_code, years):
             paper_bgcolor="rgba(0,0,0,0)",
         )
 
+    # 新闻冲击曲线
+    nic_fig = _build_nic_chart(news_impact)
+
     # 提取最新值用于核心指标
     vol_latest = {}
     if vol_data is not None and not vol_data.empty:
@@ -262,4 +279,34 @@ def run_analysis(n_clicks, etf_code, years):
         dbc.Row([
             dbc.Col(chart_card(forecast_fig, "波动率预测") if forecast_fig else html.Div(), md=12, className="mb-3"),
         ]),
+        html.Hr(className="my-2"),
+
+        # 新闻冲击曲线
+        section_header("新闻冲击曲线", "bar-chart", "正负冲击对下期波动率的不对称影响"),
+        dbc.Row([
+            dbc.Col(chart_card(nic_fig, "新闻冲击曲线") if nic_fig else html.Div(), md=12, className="mb-3"),
+        ]),
     ])
+
+
+def _build_nic_chart(nic):
+    """新闻冲击曲线图"""
+    if nic is None or nic.empty:
+        return None
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=nic["shock"] * 100, y=nic["vol"] * 100,
+        mode="lines", name="冲击→波动率",
+        line=dict(color="#e74c3c", width=2.5),
+        fill="tozeroy", fillcolor="rgba(231,76,60,0.06)",
+    ))
+    fig.add_vline(x=0, line=dict(color="gray", width=1, dash="dash"))
+    fig.update_layout(
+        title=dict(text="News Impact Curve", font=dict(size=14)),
+        xaxis_title="冲击 (收益率 %)",
+        yaxis_title="下一期波动率 (%)",
+        template="plotly_white", hovermode="x unified", height=320,
+        margin=dict(l=40, r=20, t=40, b=30),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig

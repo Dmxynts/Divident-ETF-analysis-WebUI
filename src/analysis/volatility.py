@@ -19,12 +19,19 @@ class VolatilityModel:
     """
 
     def __init__(self, p: int = 1, q: int = 1, forecast_days: int = 5,
-                 dist: str = "studentst", model_type: str = "EGARCH"):
+                 dist: str = "studentst", model_type: str = "EGARCH",
+                 z_high: float = 2.0, z_mid: float = 1.5, z_low: float = 1.0,
+                 z_neg_high: float = -1.5, z_neg_low: float = -1.0):
         self.p = p
         self.q = q
         self.forecast_days = forecast_days
         self.dist = dist
         self.model_type = model_type
+        self.z_high = z_high
+        self.z_mid = z_mid
+        self.z_low = z_low
+        self.z_neg_high = z_neg_high
+        self.z_neg_low = z_neg_low
         self.model = None
         self.results = None
         self.vol_data: Optional[pd.DataFrame] = None
@@ -40,14 +47,15 @@ class VolatilityModel:
 
         Parameters
         ----------
-        returns : pd.Series  日收益率序列
+        returns : pd.Series  日收益率序列（小数，如 0.01 表示 +1%）
         dates : pd.Series, optional  对应日期，用于记录
 
         Returns
         -------
         dict: 模型参数、AIC、BIC等
         """
-        returns_centered = returns * 100
+        # 转百分比确保数值稳定，同时允许 arch 自动 rescale
+        returns_pct = returns * 100
 
         # EGARCH 和 GJR-GARCH 需 o=1 来启用杠杆效应
         vol_type = self.model_type
@@ -59,22 +67,31 @@ class VolatilityModel:
             asym_term = 1  # 加上 gamma[1] 杠杆项
 
         self.model = arch_model(
-            returns_centered,
+            returns_pct,
             vol=vol_type,
             p=self.p,
             o=asym_term,
             q=self.q,
             dist=self.dist,
-            rescale=False,
         )
         self.results = self.model.fit(disp="off")
 
+        # arch 输出在百分比单位，转回小数
         conditional_vol = self.results.conditional_volatility / 100
 
         self.vol_data = pd.DataFrame(
             {"returns": returns, "conditional_vol": conditional_vol},
             index=returns.index
         )
+        # 标准化残差：若模型正确设定应为 ~N(0,1)，GARCH 诊断的基本统计量
+        if hasattr(self.results, "std_resid") and self.results.std_resid is not None:
+            self.vol_data["std_resid"] = self.results.std_resid.values
+        else:
+            self.vol_data["std_resid"] = self.results.resid / conditional_vol
+        # 波动率体制 Z-Score（检测波动率自身的突变）
+        mv = self.vol_data["conditional_vol"].rolling(252, min_periods=60).mean()
+        sv = self.vol_data["conditional_vol"].rolling(252, min_periods=60).std()
+        self.vol_data["vol_zscore"] = (self.vol_data["conditional_vol"] - mv) / sv
         if dates is not None:
             self.vol_data["date"] = dates.values
 
@@ -117,9 +134,71 @@ class VolatilityModel:
             return np.inf
         return -np.log(2) / np.log(pers) if pers > 0 else 0
 
+    def compute_news_impact_curve(self, n_points: int = 100) -> pd.DataFrame:
+        """
+        新闻冲击曲线 (News Impact Curve)
+
+        展示不同方向和大小的收益率冲击（ε）对下一期条件波动率的影响。
+        固定 σ²_t = 无条件方差（长期均值），遍历 ε ∈ [-4σ, 4σ]。
+
+        - GARCH:      正负冲击对称（只取决于 ε²），曲线为抛物线
+        - EGARCH:     不对称，负冲击推高波动更多（杠杆效应）
+        - GJR-GARCH:  不对称，负冲击通过 γ 项额外放大波动
+
+        Returns
+        -------
+        DataFrame: shock(冲击), vol(下一期波动率, 小数)
+        """
+        if self.results is None:
+            raise ValueError("请先拟合模型")
+
+        params = self.results.params
+        omega = params.get("omega", 0)
+        alpha1 = params.get("alpha[1]", 0)
+        beta1 = params.get("beta[1]", 0)
+        gamma1 = params.get("gamma[1]", 0)
+        mt = self.model_type
+
+        # 无条件方差（百分比平方）
+        pers = self._persistence()
+        if pers >= 1:
+            uncond_var = np.var(self.results.resid)  # fallback
+        else:
+            uncond_var = omega / (1 - pers)
+
+        uncond_vol = np.sqrt(uncond_var)
+        shocks = np.linspace(-4 * uncond_vol, 4 * uncond_vol, n_points)
+
+        if mt == "EGARCH":
+            from scipy.stats import norm
+            e_abs_z = np.sqrt(2 / np.pi)
+            ln_uncond = np.log(uncond_var)
+            # z = ε / σ (标准化冲击)
+            z = shocks / uncond_vol
+            ln_var = omega + alpha1 * (abs(z) - e_abs_z) + gamma1 * z + beta1 * ln_uncond
+            next_vol = np.sqrt(np.exp(ln_var))
+        else:
+            if mt == "GJR-GARCH":
+                asym = np.where(shocks < 0, gamma1, 0)
+            else:
+                asym = 0
+            next_var = omega + (alpha1 + asym) * shocks**2 + beta1 * uncond_var
+            next_vol = np.sqrt(next_var)
+
+        return pd.DataFrame({
+            "shock": shocks / 100,          # 百分比 → 小数
+            "vol": next_vol / 100,          # 百分比 → 小数
+        })
+
     def forecast_volatility(self, days: int = None, alpha: float = 0.10) -> pd.DataFrame:
         """
         预测未来波动率（含置信区间）
+
+        用残差 bootstrap 模拟未来波动率的完整后验分布：
+        1. 从标准化残差中有放回抽样，生成未来收益率路径
+        2. 沿每条路径递推计算条件方差（因模型类型而异）
+        3. 取解析预测作为点估计，bootstrap 分位数作为置信区间
+        模拟路径随预测步长自然发散，CI 宽度自动增加。
 
         Parameters
         ----------
@@ -135,52 +214,103 @@ class VolatilityModel:
 
         days = days or self.forecast_days
 
+        # 点估计：GARCH 解析预测（EGARCH 多步需用 simulation）
         if self.model_type == "EGARCH" and days > 1:
-            forecast = self.results.forecast(horizon=days, method="simulation")
+            fcst = self.results.forecast(horizon=days, method="simulation")
         else:
-            forecast = self.results.forecast(horizon=days)
-        var_forecast = forecast.variance.iloc[-1] / 10000
-        point_vol = np.sqrt(var_forecast)
+            fcst = self.results.forecast(horizon=days)
+        # fcst.variance 是百分比平方 (因 fit 时输入 returns*100)，转回小数
+        point_vol = np.sqrt(fcst.variance.iloc[-1] / 10000)
 
-        from scipy.stats import norm
-        residuals = self.results.resid / 100
-        z = norm.ppf(1 - alpha / 2)
-        vol_std = max(np.std(np.log(point_vol.mean()) - np.log(point_vol)), 0.05)
+        # 残差 bootstrap 获得 CI
+        std_resid = self.results.std_resid.dropna().values
+        if len(std_resid) < 10:
+            result = pd.DataFrame({
+                "point": point_vol.values,
+                "lower": point_vol.values * 0.5,
+                "upper": point_vol.values * 1.5,
+            })
+            result.index.name = "horizon"
+            return result
 
-        lower = point_vol * np.exp(-z * vol_std)
-        upper = point_vol * np.exp(z * vol_std)
+        n_sim = min(2000, len(std_resid) * 10)
+        params = self.results.params
+        omega = params.get("omega", 0)
+        alpha1 = params.get("alpha[1]", 0)
+        beta1 = params.get("beta[1]", 0)
+        gamma1 = params.get("gamma[1]", 0)
+        mt = self.model_type
+
+        last_var = max(self.results.conditional_volatility.iloc[-1]**2, 1e-15)
+        sim_vols = np.zeros((n_sim, days))
+
+        if mt == "EGARCH":
+            from scipy.stats import norm
+            e_abs_z = np.sqrt(2 / np.pi)
+            ln_last = np.log(last_var)
+            for i in range(n_sim):
+                z = np.random.choice(std_resid, size=days)
+                lvt = ln_last
+                for h in range(days):
+                    zh = z[h]
+                    lvt = omega + alpha1 * (abs(zh) - e_abs_z) + gamma1 * zh + beta1 * lvt
+                    sim_vols[i, h] = np.sqrt(max(np.exp(lvt), 1e-15))
+        else:
+            for i in range(n_sim):
+                z = np.random.choice(std_resid, size=days)
+                vt = last_var
+                for h in range(days):
+                    zh = z[h]
+                    asym = gamma1 if (mt == "GJR-GARCH" and zh < 0) else 0
+                    vt = omega + (alpha1 + asym) * zh**2 * vt + beta1 * vt
+                    vt = max(vt, 1e-15)
+                    sim_vols[i, h] = np.sqrt(vt)
 
         result = pd.DataFrame({
             "point": point_vol.values,
-            "lower": lower.values,
-            "upper": upper.values,
+            "lower": np.percentile(sim_vols, 100 * alpha / 2, axis=0) / 100,
+            "upper": np.percentile(sim_vols, 100 * (1 - alpha / 2), axis=0) / 100,
         })
         result.index.name = "horizon"
         return result
 
     def detect_extreme_events(self, n_sigma: float = 3.0) -> pd.DataFrame:
         """
-        检测极端波动率事件（统计意义上的加仓/减仓信号）
+        检测极端事件（GARCH 标准化残差诊断）
+
+        使用标准化残差 z_t = ε_t / σ_t（~N(0,1) 若模型正确设定）：
+          |z_t| > 3  → 该日收益率超出了模型预期的 3 倍条件波动率
+          z_t > +3   → 正向极端（收益率骤升）
+          z_t < -3   → 负向极端（收益率骤降，恐慌）
+
+        同时保留 vol_of_vol_zscore 反映波动率体制的突变。
+
         Returns
         -------
-        DataFrame: date, returns, vol, z_score, signal
+        DataFrame: date, conditional_vol, z_score, signal
         """
         if self.vol_data is None:
             raise ValueError("请先拟合模型")
 
         df = self.vol_data.copy()
-        # 滚动标准化波动率
-        mean_vol = df["conditional_vol"].rolling(252).mean()
-        std_vol = df["conditional_vol"].rolling(252).std()
 
-        df["vol_zscore"] = (df["conditional_vol"] - mean_vol) / std_vol
+        # 标准化残差 Z-Score（GARCH 模型的基本诊断统计量）
+        if "std_resid" in df.columns:
+            df["z_score"] = df["std_resid"]
+        else:
+            df["z_score"] = 0
 
-        # 信号生成
+        # 波动率自身的 Z-Score（检测波动率体制突变）
+        mean_v = df["conditional_vol"].rolling(252, min_periods=60).mean()
+        std_v = df["conditional_vol"].rolling(252, min_periods=60).std()
+        df["vol_of_vol_zscore"] = (df["conditional_vol"] - mean_v) / std_v
+
+        # 信号：基于标准化残差的极端值
         df["signal"] = "正常"
-        df.loc[df["vol_zscore"] > n_sigma, "signal"] = "恐慌加仓(波动率骤升)"
-        df.loc[df["vol_zscore"] < -n_sigma, "signal"] = "平静减仓(波动率极低)"
+        df.loc[df["z_score"] > n_sigma, "signal"] = "恐慌加仓(收益率骤降)"
+        df.loc[df["z_score"] < -n_sigma, "signal"] = "平静减仓(收益率骤升)"
 
-        cols = ["conditional_vol", "vol_zscore", "signal"]
+        cols = ["conditional_vol", "z_score", "vol_of_vol_zscore", "signal"]
         if "date" in df.columns:
             cols.insert(0, "date")
         return df[cols].dropna()
@@ -212,20 +342,20 @@ class VolatilityModel:
                 "vol_zscore": 0,
             }
 
-        # --- 1. Level: 当前波动率 Z-Score ---
+        # --- 1. Level: 当前波动率 Z-Score（使用可配置阈值） ---
         mean_vol = cv.rolling(252, min_periods=60).mean()
         std_vol = cv.rolling(252, min_periods=60).std()
         current_z = (cv.iloc[-1] - mean_vol.iloc[-1]) / std_vol.iloc[-1]
 
-        if current_z > 2.0:
+        if current_z > self.z_high:
             level_score = 1.0
-        elif current_z > 1.5:
+        elif current_z > self.z_mid:
             level_score = 0.7
-        elif current_z > 1.0:
+        elif current_z > self.z_low:
             level_score = 0.4
-        elif current_z < -1.5:
+        elif current_z < self.z_neg_high:
             level_score = -0.8
-        elif current_z < -1.0:
+        elif current_z < self.z_neg_low:
             level_score = -0.4
         else:
             level_score = np.clip(current_z / 3, -0.5, 0.5)
@@ -253,9 +383,9 @@ class VolatilityModel:
             events = self.detect_extreme_events()
             if not events.empty:
                 last_sig = events.iloc[-1]["signal"]
-                if last_sig == "恐慌加仓(波动率骤升)":
+                if last_sig == "恐慌加仓(收益率骤降)":
                     event_score = 1.0
-                elif last_sig == "平静减仓(波动率极低)":
+                elif last_sig == "平静减仓(收益率骤升)":
                     event_score = -0.8
                 else:
                     event_score = 0
